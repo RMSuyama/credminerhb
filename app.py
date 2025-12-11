@@ -864,8 +864,10 @@ def main_app():
                     col_n1, col_n2 = st.columns(2)
                     contract_type = col_n1.selectbox("Tipo de Contrato", ["CESU", "PAFE", "PPD", "MENSALIDADES", "JUDICIAL"])
                     fine_type = None
-                    if contract_type == "MENSALIDADES":
-                        fine_type = col_n2.radio("Tipo de Mensalidade", ["Físico", "Digital"], horizontal=True)
+                    if contract_type in ["MENSALIDADES", "JUDICIAL"]:
+                        label = "Tipo de Mensalidade" if contract_type == "MENSALIDADES" else "Tipo de Contrato"
+                        fine_type = col_n2.radio(label, ["Físico", "Digital"], horizontal=True)
+
                     
                     description = st.text_input("Descrição (ex: Mensalidade Maio/2023)")
                     
