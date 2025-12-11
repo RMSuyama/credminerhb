@@ -215,17 +215,31 @@ def main_app():
                                 from src.auth import create_session_token
                                 token = create_session_token(new_username)
                                 
-                                # Get current URL base
+                                # Detect current URL base
                                 import streamlit as st
-                                # For local: http://localhost:8501
-                                # User will need to replace with actual deployed URL
-                                base_url = "http://localhost:8501"
+                                # Try to get the app URL from Streamlit's context
+                                try:
+                                    # For Streamlit Cloud, this will return the public URL
+                                    base_url = st.get_option("browser.serverAddress")
+                                    if not base_url or base_url == "localhost":
+                                        # Fallback for local development
+                                        port = st.get_option("server.port") or 8501
+                                        base_url = f"http://localhost:{port}"
+                                    elif not base_url.startswith("http"):
+                                        # Add https for cloud URLs
+                                        base_url = f"https://{base_url}"
+                                except:
+                                    # Final fallback
+                                    base_url = "http://localhost:8501"
+                                
                                 share_link = f"{base_url}?token={token}"
                                 
                                 st.success(f"Usuário '{new_username}' criado!")
                                 st.info("Link de acesso (válido por 7 dias):")
                                 st.code(share_link)
-                                st.warning("⚠️ Se o app estiver rodando localmente, substitua 'localhost:8501' pela URL pública do servidor.")
+                                if "localhost" in base_url:
+                                    st.warning("⚠️ App rodando localmente. Para compartilhar, use a URL pública após o deploy.")
+
                                 
                             conn.close()
                         except Exception as e:
