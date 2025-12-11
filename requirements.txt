@@ -1,0 +1,9 @@
+streamlit
+pandas
+bcrypt
+python-dateutil
+beautifulsoup4
+requests
+openpyxl
+psycopg2-binary
+python-dotenv
