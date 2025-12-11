@@ -30,8 +30,56 @@ if not st.session_state['logged_in']:
             st.rerun()
 
 def login_page():
-    st.title("CredMiner HB")
-    st.caption("Sistema de Recuperação de Crédito")
+    # Styled Logo
+    st.markdown("""
+    <style>
+    .logo-container {
+        text-align: center;
+        padding: 30px 0;
+    }
+    .logo-icon {
+        width: 80px;
+        height: 80px;
+        background: linear-gradient(135deg, #0068C9 0%, #00B4D8 100%);
+        border-radius: 16px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 15px;
+        box-shadow: 0 8px 24px rgba(0, 104, 201, 0.3);
+    }
+    .logo-icon svg {
+        width: 48px;
+        height: 48px;
+        fill: white;
+    }
+    .logo-text {
+        font-size: 2.2rem;
+        font-weight: 700;
+        color: #1a1a2e;
+        margin: 0;
+        letter-spacing: -0.5px;
+    }
+    .logo-text .hb {
+        color: #0068C9;
+    }
+    .logo-subtitle {
+        font-size: 0.95rem;
+        color: #666;
+        margin-top: 5px;
+    }
+    </style>
+    <div class="logo-container">
+        <div class="logo-icon">
+            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+            </svg>
+        </div>
+        <h1 class="logo-text">CredMiner <span class="hb">HB</span></h1>
+        <p class="logo-subtitle">Sistema de Recuperação de Crédito</p>
+    </div>
+    """, unsafe_allow_html=True)
+
     
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
