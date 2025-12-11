@@ -216,7 +216,6 @@ def main_app():
                                 token = create_session_token(new_username)
                                 
                                 # Detect current URL base
-                                import streamlit as st
                                 # Try to get the app URL from Streamlit's context
                                 try:
                                     # For Streamlit Cloud, this will return the public URL
@@ -231,6 +230,7 @@ def main_app():
                                 except:
                                     # Final fallback
                                     base_url = "http://localhost:8501"
+
                                 
                                 share_link = f"{base_url}?token={token}"
                                 
