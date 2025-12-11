@@ -10,7 +10,7 @@ from src.scraper import update_all_indices
 # Initialize Database
 init_db()
 
-st.set_page_config(page_title="CredMiner - Sistema de Recuperação de Crédito", layout="wide", page_icon="💎")
+st.set_page_config(page_title="CredMiner HB - Sistema de Recuperação de Crédito", layout="wide", page_icon="⚖️")
 
 
 # Session State for Login
@@ -30,7 +30,7 @@ if not st.session_state['logged_in']:
             st.rerun()
 
 def login_page():
-    st.title("💎 CredMiner")
+    st.title("CredMiner HB")
     st.caption("Sistema de Recuperação de Crédito")
     
     col1, col2, col3 = st.columns([1, 2, 1])
@@ -74,7 +74,7 @@ def main_app():
         st.session_state['active_tab'] = "Dashboard"
 
     with st.sidebar:
-        st.title("📌 Menu")
+        st.title("Menu")
         
         # Custom CSS for "Despojado" Sidebar Buttons
         st.markdown("""
@@ -238,7 +238,7 @@ def main_app():
                                 st.info("Link de acesso (válido por 7 dias):")
                                 st.code(share_link)
                                 if "localhost" in base_url:
-                                    st.warning("⚠️ App rodando localmente. Para compartilhar, use a URL pública após o deploy.")
+                                    st.warning("App rodando localmente. Para compartilhar, use a URL pública após o deploy.")
 
                                 
                             conn.close()
@@ -254,7 +254,7 @@ def main_app():
 
     # --- PRANK BUTTON (Hidden at bottom of Sidebar) ---
     st.sidebar.markdown("<br>" * 5, unsafe_allow_html=True) # Spacer
-    if st.sidebar.button("⚠️ APAGAR TUDO (PERIGO)", type="primary", key="btn_danger"):
+    if st.sidebar.button("APAGAR TUDO (PERIGO)", type="primary", key="btn_danger"):
         import random
         import time
         
@@ -282,7 +282,7 @@ def main_app():
         
         msg = random.choice(messages)
         st.sidebar.error(msg)
-        st.sidebar.markdown(f"🤣 **Pegadinha!** Nada foi apagado.")
+        st.sidebar.markdown(f"**Pegadinha!** Nada foi apagado.")
         st.balloons()
 
     # --- PAGE ROUTING ---
@@ -498,7 +498,7 @@ def main_app():
                                 conn.close()
 
                 # --- DANGER ZONE (DELETE DEBTOR) ---
-                with st.expander("🚨 Zona de Perigo - Excluir Devedor"):
+                with st.expander("Zona de Perigo - Excluir Devedor"):
                     st.error("Atenção: A exclusão do devedor removerá PERMANENTEMENTE todos os históricos, dívidas, endereços e fiadores vinculados.")
                     if st.button("Excluir Este Devedor"):
                         st.session_state['confirm_delete_debtor'] = True
@@ -747,7 +747,7 @@ def main_app():
                 col_m2.metric("Valor Total Original", f"R$ {debts['original_value'].sum():,.2f}")
                 col_m3.metric("Último Vencimento", debts['due_date'].max() if not debts['due_date'].empty else "-")
 
-            st.subheader("📋 Lista de Dívidas")
+            st.subheader("Lista de Dívidas")
             
             if not debts.empty:
                 # Ensure due_date is datetime for the editor
@@ -781,7 +781,7 @@ def main_app():
                 col_save, col_del = st.columns([1, 4])
                 
                 with col_save:
-                    if st.button("💾 Salvar Alterações", type="primary"):
+                    if st.button("Salvar Alterações", type="primary"):
                         conn = get_connection()
                         cursor = conn.cursor()
                         try:
@@ -864,9 +864,8 @@ def main_app():
                     col_n1, col_n2 = st.columns(2)
                     contract_type = col_n1.selectbox("Tipo de Contrato", ["CESU", "PAFE", "PPD", "MENSALIDADES", "JUDICIAL"])
                     fine_type = None
-                    if contract_type in ["MENSALIDADES", "JUDICIAL"]:
-                        label = "Tipo de Mensalidade" if contract_type == "MENSALIDADES" else "Tipo de Contrato"
-                        fine_type = col_n2.radio(label, ["Físico", "Digital"], horizontal=True)
+                    if contract_type == "MENSALIDADES":
+                        fine_type = col_n2.radio("Tipo de Contrato", ["Físico", "Digital"], horizontal=True)
 
                     
                     description = st.text_input("Descrição (ex: Mensalidade Maio/2023)")
@@ -1001,7 +1000,7 @@ def main_app():
                     
                     # Report Button
                     if st.button("Gerar Memorial de Cálculo (Original)", help="Gera o relatório da dívida atualizada sem acordo (Cálculo Puro)."):
-                         st.toast("Funcionalidade de PDF (Memorial) em desenvolvimento!", icon="🚧")
+                         st.toast("Funcionalidade de PDF (Memorial) em desenvolvimento!", )
 
                 st.divider()
                 st.subheader("2. Proposta de Acordo")
@@ -1064,7 +1063,7 @@ def main_app():
                         st.markdown(f"### {installments}x de R$ {installment_val:,.2f}")
                         
                         if st.button("Gerar Minuta do Acordo (PDF)"):
-                            st.toast("Funcionalidade de PDF em desenvolvimento!", icon="🚧")
+                            st.toast("Funcionalidade de PDF em desenvolvimento!", )
 
 if not st.session_state['logged_in']:
     login_page()

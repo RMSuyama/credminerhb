@@ -76,10 +76,8 @@ class JudicialRule(ContractRule):
     def get_index_name(self):
         return "IPCA"
     
-    def get_fine_percentage(self, debt_type="Físico"):
-        if debt_type == "Digital":
-            return Decimal("0.25") # 25%
-        return Decimal("0.02") # 2% (Default Physical)
+    def get_fine_percentage(self, debt_type=None):
+        return Decimal("0.00") # JUDICIAL contracts don't have fines
     
     def is_pro_rata(self):
         return False # Special logic for Law 14905 (SELIC-IPCA)

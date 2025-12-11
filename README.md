@@ -1,8 +1,8 @@
-# 💎 CredMiner - Sistema de Recuperação de Crédito
+# CredMiner HB - Sistema de Recuperação de Crédito
 
 Sistema completo de gestão de cobranças judiciais com cálculo automático de correção monetária e juros.
 
-## 🚀 Acesso ao Sistema
+##  Acesso ao Sistema
 
 **URL de Acesso:** https://credminerhb.streamlit.app
 
@@ -10,26 +10,26 @@ Sistema completo de gestão de cobranças judiciais com cálculo automático de 
 - **Usuário:** admin
 - **Senha:** admin
 
-⚠️ **IMPORTANTE:** Altere a senha padrão após o primeiro acesso!
+ **IMPORTANTE:** Altere a senha padrão após o primeiro acesso!
 
-## 📋 Funcionalidades
+##  Funcionalidades
 
-- ✅ Cadastro completo de devedores, endereços e fiadores
-- ✅ Gestão de dívidas por tipo de contrato (CESU, PAFE, PPD, Mensalidades, Judicial)
-- ✅ Cálculo automático de correção monetária (INPC, IPC-FIPE, IPCA)
-- ✅ Inclusão de custas judiciais
-- ✅ Simulação de acordos e negociações
-- ✅ Sistema de autenticação com múltiplos usuários
-- ✅ Links compartilháveis para acesso
+-  Cadastro completo de devedores, endereços e fiadores
+-  Gestão de dívidas por tipo de contrato (CESU, PAFE, PPD, Mensalidades, Judicial)
+-  Cálculo automático de correção monetária (INPC, IPC-FIPE, IPCA)
+-  Inclusão de custas judiciais
+-  Simulação de acordos e negociações
+-  Sistema de autenticação com múltiplos usuários
+-  Links compartilháveis para acesso
 
-## 🛠️ Tecnologias
+##  Tecnologias
 
 - **Backend:** Python + Streamlit
 - **Banco de Dados:** SQLite (local) ou PostgreSQL/Supabase (produção)
 - **Scraping:** BeautifulSoup4 para atualização de índices AASP
 - **Autenticação:** bcrypt
 
-## 📦 Instalação Local
+##  Instalação Local
 
 ```bash
 # Clone o repositório
@@ -43,7 +43,7 @@ pip install -r requirements.txt
 streamlit run app.py
 ```
 
-## 🔐 Configuração do Banco de Dados
+##  Configuração do Banco de Dados
 
 ### SQLite (Padrão)
 Por padrão, o sistema usa SQLite e não requer configuração adicional.
@@ -62,14 +62,14 @@ SUPABASE_USER=postgres
 SUPABASE_PASSWORD=sua-senha
 ```
 
-## 👥 Gerenciamento de Usuários
+##  Gerenciamento de Usuários
 
 Acesse **Configurações** no menu lateral para:
 - Criar novos usuários
 - Gerar links de acesso compartilháveis
 - Atualizar índices econômicos
 
-## 📊 Tipos de Contrato
+##  Tipos de Contrato
 
 O sistema suporta cálculos específicos para:
 
@@ -79,16 +79,16 @@ O sistema suporta cálculos específicos para:
 - **MENSALIDADES:** Correção IPCA + Multa configurável (2% ou 20%)
 - **JUDICIAL:** Correção IPCA + Juros 1% a.m.
 
-## 🔄 Atualização de Índices
+##  Atualização de Índices
 
 O sistema pode buscar automaticamente os índices econômicos do site da AASP:
 1. Acesse **Configurações** no menu
 2. Clique em **Atualizar Índices (SELIC/IPCA)**
 
-## 🤝 Contribuições
+##  Contribuições
 
 Desenvolvido por RMSuyama
 
-## 📄 Licença
+##  Licença
 
 Este projeto é proprietário. Todos os direitos reservados.
