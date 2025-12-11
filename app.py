@@ -310,9 +310,11 @@ def main_app():
             time.sleep(1)
             status.write("Acessando núcleo do servidor...")
             time.sleep(1)
-            status.write("Buscando cafés não tomados...")
+            status.write("Aquecendo o Lança-Chamas (40%)...")
             time.sleep(1)
-            status.write("Injetando chumbo nos balões (para subirem devagar)...")
+            status.write("Aquecendo o Lança-Chamas (80%)...")
+            time.sleep(1)
+            status.write("Aquecendo o Lança-Chamas (99%)...")
             time.sleep(1.5)
             status.update(label="ERRO CRÍTICO!", state="error", expanded=True)
         
