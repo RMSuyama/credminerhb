@@ -20,6 +20,128 @@ except Exception as e:
 
 st.set_page_config(page_title="CredMiner HB - Sistema de Recuperação de Crédito", layout="wide", page_icon="⚖️")
 
+# Aplicar CSS corporativo (design anos 2000 - minimalista e profissional)
+st.markdown("""
+<style>
+    /* Fontes e cores corporativas */
+    :root {
+        --primary-color: #1a3a52;
+        --secondary-color: #2d5a7b;
+        --accent-color: #3d7cab;
+        --neutral-light: #f5f5f5;
+        --neutral-dark: #333333;
+        --border-color: #cccccc;
+    }
+    
+    /* Header estilo corporativo */
+    h1, h2, h3 {
+        color: var(--primary-color) !important;
+        font-family: Arial, sans-serif !important;
+        font-weight: bold !important;
+        margin-top: 1.5rem !important;
+        margin-bottom: 0.75rem !important;
+    }
+    
+    h1 {
+        font-size: 28px !important;
+        border-bottom: 2px solid var(--primary-color) !important;
+        padding-bottom: 0.5rem !important;
+    }
+    
+    h2 {
+        font-size: 22px !important;
+    }
+    
+    h3 {
+        font-size: 18px !important;
+        margin-top: 1rem !important;
+    }
+    
+    /* Métrica - Design corporativo */
+    div[data-testid="stMetric"] {
+        background-color: white !important;
+        border: 1px solid var(--border-color) !important;
+        border-radius: 4px !important;
+        padding: 1.25rem !important;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.08) !important;
+    }
+    
+    div[data-testid="stMetric"] label {
+        color: var(--primary-color) !important;
+        font-weight: bold !important;
+        font-size: 12px !important;
+    }
+    
+    div[data-testid="stMetric"] div[data-testid="stMetricValue"] {
+        color: var(--neutral-dark) !important;
+        font-size: 24px !important;
+        font-weight: bold !important;
+    }
+    
+    /* Buttons - Corporativo */
+    button {
+        border-radius: 4px !important;
+        border: 1px solid var(--primary-color) !important;
+        font-family: Arial, sans-serif !important;
+    }
+    
+    button[type="primary"] {
+        background-color: var(--primary-color) !important;
+        color: white !important;
+    }
+    
+    button[type="secondary"] {
+        background-color: transparent !important;
+        color: var(--primary-color) !important;
+    }
+    
+    /* Tabs */
+    div[role="tablist"] {
+        border-bottom: 2px solid var(--border-color) !important;
+    }
+    
+    /* Containers */
+    section[data-testid="stSidebar"] {
+        background-color: var(--neutral-light) !important;
+        border-right: 1px solid var(--border-color) !important;
+    }
+    
+    /* DataFrame/Table */
+    div[data-testid="stDataFrame"] {
+        border: 1px solid var(--border-color) !important;
+        border-radius: 4px !important;
+    }
+    
+    /* Success/Error Messages */
+    div[data-testid="stAlert"] {
+        border-radius: 4px !important;
+        border-left: 4px solid !important;
+    }
+    
+    /* Form elements */
+    input, select, textarea {
+        border-radius: 4px !important;
+        border: 1px solid var(--border-color) !important;
+        padding: 0.5rem !important;
+        font-family: Arial, sans-serif !important;
+    }
+    
+    /* Divider */
+    hr {
+        border: none !important;
+        border-top: 1px solid var(--border-color) !important;
+        margin: 1.5rem 0 !important;
+    }
+    
+    /* Text geral */
+    body {
+        font-family: Arial, sans-serif !important;
+        color: var(--neutral-dark) !important;
+    }
+</style>
+"""
+, unsafe_allow_html=True)
+
 # If DB initialization failed, show a non-blocking warning so the Streamlit UI still loads
 if not DB_AVAILABLE:
     try:
@@ -220,13 +342,13 @@ def main_app():
                 st.session_state['active_tab'] = page_name
                 st.rerun()
 
-        nav_button("📊 Painel Geral", "Dashboard", "")
-        nav_button("👥 Devedores", "Cadastro de Devedores", "")
-        nav_button("📋 Dívidas", "Gerenciar Dívidas", "")
-        nav_button("⚖️ Judicial", "Judicialização", "")
-        nav_button("💰 Simulação", "Negociação / Simulação", "")
-        nav_button("💳 Pagamentos", "Registrar Pagamento", "")
-        nav_button("✅ Acordos", "Gerenciar Acordos", "")
+        nav_button("Painel Geral", "Dashboard", "")
+        nav_button("Devedores", "Cadastro de Devedores", "")
+        nav_button("Dívidas", "Gerenciar Dívidas", "")
+        nav_button("Judicial", "Judicialização", "")
+        nav_button("Simulação", "Negociação / Simulação", "")
+        nav_button("Pagamentos", "Registrar Pagamento", "")
+        nav_button("Acordos", "Gerenciar Acordos", "")
         
         st.divider()
         
@@ -362,8 +484,8 @@ def main_app():
 
 
     if page == "Dashboard":
-        st.header("📊 Painel de Análise - Sistema de Recuperação de Crédito")
-        st.markdown("**Visão geral de desempenho de cobrança e recuperação de crédito**")
+        st.header("Painel de Análise")
+        st.markdown("Visão geral de desempenho de cobrança e recuperação de crédito")
         
         conn = get_connection()
         try:
@@ -388,7 +510,7 @@ def main_app():
             remaining_value = total_original_value - total_recovered
             
             # KPIs principais (linha 1)
-            st.markdown("### 📈 KPIs Principais")
+            st.markdown("### Indicadores de Desempenho")
             col1, col2, col3, col4, col5 = st.columns(5)
             
             with col1:
@@ -432,7 +554,7 @@ def main_app():
                 )
             
             # ===== VALORES EM REAIS =====
-            st.markdown("### 💰 Análise de Valores")
+            st.markdown("### Análise de Valores")
             col1, col2, col3, col4 = st.columns(4)
             
             with col1:
@@ -473,7 +595,7 @@ def main_app():
                     )
             
             # ===== GRÁFICOS ANALÍTICOS =====
-            st.markdown("### 📉 Análises Detalhadas")
+            st.markdown("### Análises Detalhadas")
             
             tab1, tab2, tab3, tab4, tab5 = st.tabs([
                 "Recuperação", "Acordos", "Dívidas", "Desempenho", "Detalhes"
@@ -596,21 +718,21 @@ def main_app():
                     st.info("Nenhum devedor registrado.")
             
             # ===== ATALHOS RÁPIDOS =====
-            st.markdown("### ⚡ Ações Rápidas")
+            st.markdown("### Ações Rápidas")
             col1, col2, col3 = st.columns(3)
             
             with col1:
-                if st.button("➕ Registrar Nova Dívida", use_container_width=True):
+                if st.button("Registrar Nova Dívida", use_container_width=True):
                     st.session_state['active_tab'] = "Gerenciar Dívidas"
                     st.rerun()
             
             with col2:
-                if st.button("✅ Registrar Novo Acordo", use_container_width=True):
+                if st.button("Registrar Novo Acordo", use_container_width=True):
                     st.session_state['active_tab'] = "Negociação / Simulação"
                     st.rerun()
             
             with col3:
-                if st.button("💳 Registrar Pagamento", use_container_width=True):
+                if st.button("Registrar Pagamento", use_container_width=True):
                     st.info("Esta funcionalidade será adicionada em breve.")
                 
         finally:
@@ -1349,8 +1471,8 @@ def main_app():
                             st.toast("Funcionalidade de PDF em desenvolvimento!", )
 
     elif page == "Registrar Pagamento":
-        st.header("💳 Registrar Pagamento")
-        st.markdown("**Registro de pagamentos recebidos de devedores**")
+        st.header("Registrar Pagamento")
+        st.markdown("Registro de pagamentos recebidos de devedores")
         
         conn = get_connection()
         try:
@@ -1406,7 +1528,7 @@ def main_app():
                                     notes
                                 ))
                                 conn.commit()
-                                st.success("✅ Pagamento registrado com sucesso!")
+                                st.success("Pagamento registrado com sucesso!")
                                 st.rerun()
                             except Exception as e:
                                 st.error(f"Erro ao registrar pagamento: {e}")
@@ -1450,8 +1572,8 @@ def main_app():
             conn.close()
 
     elif page == "Gerenciar Acordos":
-        st.header("✅ Gerenciar Acordos")
-        st.markdown("**Criar, atualizar e acompanhar acordos de pagamento**")
+        st.header("Gerenciar Acordos")
+        st.markdown("Criar, atualizar e acompanhar acordos de pagamento")
         
         tab_new_agreement, tab_manage_agreements = st.tabs(["Novo Acordo", "Gerenciar Acordos"])
         
@@ -1525,7 +1647,7 @@ def main_app():
                                     agreement_notes
                                 ))
                                 conn.commit()
-                                st.success("✅ Acordo criado com sucesso!")
+                                st.success("Acordo criado com sucesso!")
                                 st.rerun()
                             except Exception as e:
                                 st.error(f"Erro ao criar acordo: {e}")
