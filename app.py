@@ -8,6 +8,62 @@ from src.calculator import Calculator
 from src.scraper import update_all_indices
 from src.validators import ContactValidator, CONTACT_STATUS_LIST
 
+# ===== HELPER FUNCTIONS FOR UI COMPONENTS =====
+
+def render_logo_inline():
+    """Render inline logo with icon."""
+    return """
+    <div class="logo-inline">
+        <div class="logo-inline-icon">
+            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style="width: 20px; height: 20px; fill: white;">
+                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+            </svg>
+        </div>
+        <span>CredMiner <strong>HB</strong></span>
+    </div>
+    """
+
+def page_header(title, subtitle=""):
+    """Render page header with logo."""
+    col1, col2 = st.columns([0.15, 0.85])
+    with col1:
+        st.markdown(render_logo_inline(), unsafe_allow_html=True)
+    with col2:
+        st.header(title)
+    if subtitle:
+        st.markdown(subtitle)
+
+def render_footer():
+    """Render professional footer with company info and signature."""
+    footer_html = """
+    <div class="footer-container">
+        <div class="footer-content">
+            <div class="footer-logo">
+                <div class="footer-logo-icon">
+                    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style="width: 36px; height: 36px; fill: white;">
+                        <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+                    </svg>
+                </div>
+                <div class="footer-logo-text">CredMiner HB</div>
+            </div>
+            
+            <div class="footer-info">
+                <div class="footer-info-item">
+                    <span class="footer-info-label">Endereço:</span> NASA, Washington D.C., USA
+                </div>
+                <div class="footer-info-item">
+                    <span class="footer-info-label">Email:</span> hb.solutions@gmail.com
+                </div>
+            </div>
+            
+            <div class="footer-divider">
+                halfblood. 2018
+            </div>
+        </div>
+    </div>
+    """
+    st.markdown(footer_html, unsafe_allow_html=True)
+
 # Initialize Database (protected so Streamlit doesn't crash on startup if DB is unreachable)
 db_init_error = None
 DB_AVAILABLE = True
@@ -180,6 +236,92 @@ st.markdown("""
         font-family: Arial, sans-serif !important;
         color: var(--neutral-dark) !important;
     }
+    
+    /* Footer Styles */
+    .footer-container {
+        border-top: 2px solid var(--primary-color) !important;
+        margin-top: 3rem !important;
+        padding: 2rem 1rem !important;
+        background-color: var(--neutral-light) !important;
+        border-radius: 4px !important;
+    }
+    
+    .footer-content {
+        display: flex !important;
+        justify-content: space-between !important;
+        align-items: center !important;
+        flex-wrap: wrap !important;
+        gap: 2rem !important;
+        max-width: 1200px !important;
+        margin: 0 auto !important;
+    }
+    
+    .footer-logo {
+        display: flex !important;
+        align-items: center !important;
+        gap: 0.75rem !important;
+    }
+    
+    .footer-logo-icon {
+        width: 48px !important;
+        height: 48px !important;
+        background: linear-gradient(135deg, #0068C9 0%, #00B4D8 100%) !important;
+        border-radius: 8px !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+    }
+    
+    .footer-logo-text {
+        font-size: 1.2rem !important;
+        font-weight: bold !important;
+        color: var(--primary-color) !important;
+    }
+    
+    .footer-info {
+        text-align: center !important;
+        flex: 1 !important;
+        min-width: 200px !important;
+    }
+    
+    .footer-info-item {
+        margin: 0.5rem 0 !important;
+        font-size: 0.95rem !important;
+        color: var(--neutral-dark) !important;
+    }
+    
+    .footer-info-label {
+        font-weight: bold !important;
+        color: var(--primary-color) !important;
+    }
+    
+    .footer-divider {
+        text-align: right !important;
+        font-size: 0.9rem !important;
+        color: #999 !important;
+        margin-top: 1rem !important;
+        font-style: italic !important;
+    }
+    
+    /* Logo inline */
+    .logo-inline {
+        display: inline-flex !important;
+        align-items: center !important;
+        gap: 0.5rem !important;
+        font-size: 1.1rem !important;
+        font-weight: bold !important;
+        color: var(--primary-color) !important;
+    }
+    
+    .logo-inline-icon {
+        width: 32px !important;
+        height: 32px !important;
+        background: linear-gradient(135deg, #0068C9 0%, #00B4D8 100%) !important;
+        border-radius: 6px !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+    }
 </style>
 """
 , unsafe_allow_html=True)
@@ -284,6 +426,10 @@ def login_page():
                     st.rerun()
                 else:
                     st.error("Usuário ou senha incorretos.")
+    
+    # Add footer to login page
+    st.divider()
+    render_footer()
 
 def get_debtors():
     conn = get_connection()
@@ -306,6 +452,10 @@ def main_app():
         st.session_state['active_tab'] = "Dashboard"
 
     with st.sidebar:
+        # Logo no topo do sidebar
+        st.markdown(render_logo_inline(), unsafe_allow_html=True)
+        st.divider()
+        
         st.title("Menu")
         
         # Custom CSS for "Despojado" Sidebar Buttons
@@ -495,8 +645,8 @@ def main_app():
 
 
     if page == "Dashboard":
-        st.header("Painel de Análise")
-        st.markdown("Visão geral de desempenho de cobrança e recuperação de crédito")
+        # Logo + Título do Dashboard
+        page_header("Painel de Análise", "Visão geral de desempenho de cobrança e recuperação de crédito")
         
         conn = get_connection()
         try:
@@ -750,7 +900,7 @@ def main_app():
             conn.close()
 
     elif page == "Judicialização":
-        st.header("Gestão de Custas Judiciais")
+        page_header("Gestão de Custas Judiciais")
         st.info("Aqui você lança custas processuais que serão somadas ao valor final da dívida para acordo.")
         
         debtors = get_debtors()
@@ -840,7 +990,7 @@ def main_app():
             st.warning("Cadastre devedores primeiro.")
 
     elif page == "Cadastro de Devedores":
-        st.header("Gestão de Devedores")
+        page_header("Gestão de Devedores")
         
         tab1, tab2 = st.tabs(["Novo Devedor", "Gerenciar Devedores (Endereços/Fiadores)"])
         
@@ -1332,7 +1482,7 @@ def main_app():
                         st.info("Nenhum contato registrado no histórico")
 
     elif page == "Gerenciar Dívidas":
-        st.header("Gerenciar Dívidas")
+        page_header("Gerenciar Dívidas")
         
         debtors = get_debtors()
         if debtors.empty:
@@ -1521,7 +1671,7 @@ def main_app():
                                 conn.close()
 
     elif page == "Negociação / Simulação":
-        st.header("Negociação e Acordo Avançado")
+        page_header("Negociação e Acordo Avançado")
         
         debtors = get_debtors()
         if debtors.empty:
@@ -1676,8 +1826,7 @@ def main_app():
                             st.toast("Funcionalidade de PDF em desenvolvimento!", )
 
     elif page == "Registrar Pagamento":
-        st.header("Registrar Pagamento")
-        st.markdown("Registro de pagamentos recebidos de devedores")
+        page_header("Registrar Pagamento", "Registro de pagamentos recebidos de devedores")
         
         conn = get_connection()
         try:
@@ -1777,8 +1926,7 @@ def main_app():
             conn.close()
 
     elif page == "Gerenciar Acordos":
-        st.header("Gerenciar Acordos")
-        st.markdown("Criar, atualizar e acompanhar acordos de pagamento")
+        page_header("Gerenciar Acordos", "Criar, atualizar e acompanhar acordos de pagamento")
         
         tab_new_agreement, tab_manage_agreements = st.tabs(["Novo Acordo", "Gerenciar Acordos"])
         
@@ -1932,8 +2080,7 @@ def main_app():
             conn.close()
 
     elif page == "Configurações Avançadas":
-        st.header("Configurações Avançadas")
-        st.markdown("Gerenciamento de sistema e operações críticas")
+        page_header("Configurações Avançadas", "Gerenciamento de sistema e operações críticas")
         
         tab_config, tab_danger = st.tabs(["Configurações do Sistema", "Zona de Perigo"])
         
@@ -2027,3 +2174,6 @@ if not st.session_state['logged_in']:
     login_page()
 else:
     main_app()
+    # Add footer to main app
+    st.divider()
+    render_footer()

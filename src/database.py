@@ -39,23 +39,41 @@ def init_db():
 
     if USE_SUPABASE:
         # PostgreSQL Table Definitions
+        
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS clients (
+                id SERIAL PRIMARY KEY,
+                name TEXT NOT NULL,
+                cnpj TEXT UNIQUE,
+                email TEXT,
+                phone TEXT,
+                address TEXT,
+                notes TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS users (
                 id SERIAL PRIMARY KEY,
                 username TEXT UNIQUE NOT NULL,
-                password_hash TEXT NOT NULL
+                password_hash TEXT NOT NULL,
+                client_id INTEGER REFERENCES clients (id) ON DELETE SET NULL
             )
         ''')
 
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS debtors (
                 id SERIAL PRIMARY KEY,
+                client_id INTEGER NOT NULL,
                 name TEXT NOT NULL,
-                cpf_cnpj TEXT UNIQUE,
+                cpf_cnpj TEXT,
                 rg TEXT,
                 email TEXT,
                 phone TEXT,
-                notes TEXT
+                notes TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (client_id) REFERENCES clients (id) ON DELETE CASCADE
             )
         ''')
         
@@ -63,6 +81,7 @@ def init_db():
             CREATE TABLE IF NOT EXISTS contact_history (
                 id SERIAL PRIMARY KEY,
                 debtor_id INTEGER NOT NULL,
+                client_id INTEGER NOT NULL,
                 contact_type TEXT NOT NULL,
                 contact_value TEXT NOT NULL,
                 status TEXT DEFAULT 'ativo',
@@ -70,7 +89,8 @@ def init_db():
                 attempt_date DATE,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (debtor_id) REFERENCES debtors (id) ON DELETE CASCADE
+                FOREIGN KEY (debtor_id) REFERENCES debtors (id) ON DELETE CASCADE,
+                FOREIGN KEY (client_id) REFERENCES clients (id) ON DELETE CASCADE
             )
         ''')
         
@@ -78,13 +98,15 @@ def init_db():
             CREATE TABLE IF NOT EXISTS guarantors (
                 id SERIAL PRIMARY KEY,
                 debtor_id INTEGER NOT NULL,
+                client_id INTEGER NOT NULL,
                 name TEXT NOT NULL,
                 cpf TEXT,
                 rg TEXT,
                 email TEXT,
                 phone TEXT,
                 notes TEXT,
-                FOREIGN KEY (debtor_id) REFERENCES debtors (id) ON DELETE CASCADE
+                FOREIGN KEY (debtor_id) REFERENCES debtors (id) ON DELETE CASCADE,
+                FOREIGN KEY (client_id) REFERENCES clients (id) ON DELETE CASCADE
             )
         ''')
 
@@ -93,6 +115,7 @@ def init_db():
                 id SERIAL PRIMARY KEY,
                 debtor_id INTEGER,
                 guarantor_id INTEGER,
+                client_id INTEGER NOT NULL,
                 cep TEXT,
                 street TEXT,
                 number TEXT,
@@ -101,7 +124,8 @@ def init_db():
                 state TEXT,
                 is_primary BOOLEAN DEFAULT false,
                 FOREIGN KEY (debtor_id) REFERENCES debtors (id) ON DELETE CASCADE,
-                FOREIGN KEY (guarantor_id) REFERENCES guarantors (id) ON DELETE CASCADE
+                FOREIGN KEY (guarantor_id) REFERENCES guarantors (id) ON DELETE CASCADE,
+                FOREIGN KEY (client_id) REFERENCES clients (id) ON DELETE CASCADE
             )
         ''')
 
@@ -109,13 +133,15 @@ def init_db():
             CREATE TABLE IF NOT EXISTS debts (
                 id SERIAL PRIMARY KEY,
                 debtor_id INTEGER NOT NULL,
+                client_id INTEGER NOT NULL,
                 contract_type TEXT NOT NULL,
                 description TEXT,
                 original_value NUMERIC NOT NULL,
                 due_date DATE NOT NULL,
                 fine_type TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (debtor_id) REFERENCES debtors (id) ON DELETE CASCADE
+                FOREIGN KEY (debtor_id) REFERENCES debtors (id) ON DELETE CASCADE,
+                FOREIGN KEY (client_id) REFERENCES clients (id) ON DELETE CASCADE
             )
         ''')
         
@@ -123,11 +149,13 @@ def init_db():
             CREATE TABLE IF NOT EXISTS legal_expenses (
                 id SERIAL PRIMARY KEY,
                 debtor_id INTEGER NOT NULL,
+                client_id INTEGER NOT NULL,
                 description TEXT NOT NULL,
                 value NUMERIC NOT NULL,
                 date DATE,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (debtor_id) REFERENCES debtors (id) ON DELETE CASCADE
+                FOREIGN KEY (debtor_id) REFERENCES debtors (id) ON DELETE CASCADE,
+                FOREIGN KEY (client_id) REFERENCES clients (id) ON DELETE CASCADE
             )
         ''')
         
@@ -135,6 +163,7 @@ def init_db():
             CREATE TABLE IF NOT EXISTS agreements (
                 id SERIAL PRIMARY KEY,
                 debtor_id INTEGER NOT NULL,
+                client_id INTEGER NOT NULL,
                 debt_id INTEGER,
                 status TEXT DEFAULT 'active',
                 agreement_date DATE NOT NULL,
@@ -146,6 +175,7 @@ def init_db():
                 notes TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (debtor_id) REFERENCES debtors (id) ON DELETE CASCADE,
+                FOREIGN KEY (client_id) REFERENCES clients (id) ON DELETE CASCADE,
                 FOREIGN KEY (debt_id) REFERENCES debts (id) ON DELETE SET NULL
             )
         ''')
@@ -156,6 +186,7 @@ def init_db():
                 agreement_id INTEGER,
                 debt_id INTEGER,
                 debtor_id INTEGER NOT NULL,
+                client_id INTEGER NOT NULL,
                 payment_date DATE NOT NULL,
                 amount NUMERIC NOT NULL,
                 installment_number INTEGER,
@@ -164,29 +195,47 @@ def init_db():
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (agreement_id) REFERENCES agreements (id) ON DELETE SET NULL,
                 FOREIGN KEY (debt_id) REFERENCES debts (id) ON DELETE SET NULL,
-                FOREIGN KEY (debtor_id) REFERENCES debtors (id) ON DELETE CASCADE
+                FOREIGN KEY (debtor_id) REFERENCES debtors (id) ON DELETE CASCADE,
+                FOREIGN KEY (client_id) REFERENCES clients (id) ON DELETE CASCADE
             )
         ''')
         
     else:
         # SQLite Table Definitions (original)
         cursor.execute('''
+            CREATE TABLE IF NOT EXISTS clients (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                cnpj TEXT UNIQUE,
+                email TEXT,
+                phone TEXT,
+                address TEXT,
+                notes TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        
+        cursor.execute('''
             CREATE TABLE IF NOT EXISTS users (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 username TEXT UNIQUE NOT NULL,
-                password_hash TEXT NOT NULL
+                password_hash TEXT NOT NULL,
+                client_id INTEGER REFERENCES clients (id)
             )
         ''')
 
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS debtors (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                client_id INTEGER NOT NULL,
                 name TEXT NOT NULL,
-                cpf_cnpj TEXT UNIQUE,
+                cpf_cnpj TEXT,
                 rg TEXT,
                 email TEXT,
                 phone TEXT,
-                notes TEXT
+                notes TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (client_id) REFERENCES clients (id)
             )
         ''')
         
@@ -194,6 +243,7 @@ def init_db():
             CREATE TABLE IF NOT EXISTS contact_history (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 debtor_id INTEGER NOT NULL,
+                client_id INTEGER NOT NULL,
                 contact_type TEXT NOT NULL,
                 contact_value TEXT NOT NULL,
                 status TEXT DEFAULT 'ativo',
@@ -201,7 +251,8 @@ def init_db():
                 attempt_date TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (debtor_id) REFERENCES debtors (id)
+                FOREIGN KEY (debtor_id) REFERENCES debtors (id),
+                FOREIGN KEY (client_id) REFERENCES clients (id)
             )
         ''')
         
@@ -216,13 +267,15 @@ def init_db():
             CREATE TABLE IF NOT EXISTS guarantors (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 debtor_id INTEGER NOT NULL,
+                client_id INTEGER NOT NULL,
                 name TEXT NOT NULL,
                 cpf TEXT,
                 rg TEXT,
                 email TEXT,
                 phone TEXT,
                 notes TEXT,
-                FOREIGN KEY (debtor_id) REFERENCES debtors (id)
+                FOREIGN KEY (debtor_id) REFERENCES debtors (id),
+                FOREIGN KEY (client_id) REFERENCES clients (id)
             )
         ''')
 
@@ -231,6 +284,7 @@ def init_db():
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 debtor_id INTEGER,
                 guarantor_id INTEGER,
+                client_id INTEGER NOT NULL,
                 cep TEXT,
                 street TEXT,
                 number TEXT,
@@ -239,7 +293,8 @@ def init_db():
                 state TEXT,
                 is_primary BOOLEAN DEFAULT 0,
                 FOREIGN KEY (debtor_id) REFERENCES debtors (id),
-                FOREIGN KEY (guarantor_id) REFERENCES guarantors (id)
+                FOREIGN KEY (guarantor_id) REFERENCES guarantors (id),
+                FOREIGN KEY (client_id) REFERENCES clients (id)
             )
         ''')
 
@@ -247,13 +302,15 @@ def init_db():
             CREATE TABLE IF NOT EXISTS debts (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 debtor_id INTEGER NOT NULL,
+                client_id INTEGER NOT NULL,
                 contract_type TEXT NOT NULL,
                 description TEXT,
                 original_value REAL NOT NULL,
                 due_date TEXT NOT NULL,
                 fine_type TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (debtor_id) REFERENCES debtors (id)
+                FOREIGN KEY (debtor_id) REFERENCES debtors (id),
+                FOREIGN KEY (client_id) REFERENCES clients (id)
             )
         ''')
         
@@ -261,11 +318,13 @@ def init_db():
             CREATE TABLE IF NOT EXISTS legal_expenses (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 debtor_id INTEGER NOT NULL,
+                client_id INTEGER NOT NULL,
                 description TEXT NOT NULL,
                 value REAL NOT NULL,
                 date TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (debtor_id) REFERENCES debtors (id)
+                FOREIGN KEY (debtor_id) REFERENCES debtors (id),
+                FOREIGN KEY (client_id) REFERENCES clients (id)
             )
         ''')
         
@@ -273,6 +332,7 @@ def init_db():
             CREATE TABLE IF NOT EXISTS agreements (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 debtor_id INTEGER NOT NULL,
+                client_id INTEGER NOT NULL,
                 debt_id INTEGER,
                 status TEXT DEFAULT 'active',
                 agreement_date TEXT NOT NULL,
@@ -284,6 +344,7 @@ def init_db():
                 notes TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (debtor_id) REFERENCES debtors (id),
+                FOREIGN KEY (client_id) REFERENCES clients (id),
                 FOREIGN KEY (debt_id) REFERENCES debts (id)
             )
         ''')
