@@ -7,10 +7,30 @@ from src.auth import check_credentials, create_session_token, validate_session_t
 from src.calculator import Calculator
 from src.scraper import update_all_indices
 
-# Initialize Database
-init_db()
+# Initialize Database (protected so Streamlit doesn't crash on startup if DB is unreachable)
+db_init_error = None
+DB_AVAILABLE = True
+try:
+    init_db()
+except Exception as e:
+    # Keep the app running and report the error inside the UI later
+    db_init_error = e
+    DB_AVAILABLE = False
+    print("Warning: database initialization failed:", e)
 
 st.set_page_config(page_title="CredMiner HB - Sistema de Recuperação de Crédito", layout="wide", page_icon="⚖️")
+
+# If DB initialization failed, show a non-blocking warning so the Streamlit UI still loads
+if not DB_AVAILABLE:
+    try:
+        st.warning(
+            "Atenção: não foi possível conectar ao banco de dados Supabase. "
+            "O app caiu para um banco local ou está em modo degradado. Verifique suas credenciais (st.secrets ou .env).\n"
+            f"Erro: {db_init_error}"
+        )
+    except Exception:
+        # If Streamlit isn't fully ready yet, print to console as fallback
+        print("DB warning: ", db_init_error)
 
 
 # Session State for Login

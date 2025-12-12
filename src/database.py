@@ -11,14 +11,21 @@ if USE_SUPABASE:
 def get_connection():
     """Returns a connection to the database (SQLite or PostgreSQL based on config)."""
     if USE_SUPABASE:
-        # PostgreSQL connection
-        return psycopg2.connect(
-            host=SUPABASE_HOST,
-            port=SUPABASE_PORT,
-            database=SUPABASE_DB,
-            user=SUPABASE_USER,
-            password=SUPABASE_PASSWORD
-        )
+        # Try PostgreSQL connection; if it fails, fall back to local SQLite so the UI can still run.
+        try:
+            return psycopg2.connect(
+                host=SUPABASE_HOST,
+                port=SUPABASE_PORT,
+                database=SUPABASE_DB,
+                user=SUPABASE_USER,
+                password=SUPABASE_PASSWORD
+            )
+        except Exception as e:
+            print("Warning: could not connect to Supabase/Postgres (falling back to SQLite):", e)
+            # Fall back to SQLite to keep the app usable in local development
+            if not os.path.exists("data"):
+                os.makedirs("data")
+            return sqlite3.connect(SQLITE_DB_PATH)
     else:
         # SQLite connection
         if not os.path.exists("data"):
