@@ -116,6 +116,43 @@ def init_db():
             )
         ''')
         
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS agreements (
+                id SERIAL PRIMARY KEY,
+                debtor_id INTEGER NOT NULL,
+                debt_id INTEGER,
+                status TEXT DEFAULT 'active',
+                agreement_date DATE NOT NULL,
+                agreed_value NUMERIC NOT NULL,
+                total_installments INTEGER DEFAULT 1,
+                installment_value NUMERIC,
+                interest_rate NUMERIC DEFAULT 0,
+                first_installment_date DATE,
+                notes TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (debtor_id) REFERENCES debtors (id) ON DELETE CASCADE,
+                FOREIGN KEY (debt_id) REFERENCES debts (id) ON DELETE SET NULL
+            )
+        ''')
+        
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS payments (
+                id SERIAL PRIMARY KEY,
+                agreement_id INTEGER,
+                debt_id INTEGER,
+                debtor_id INTEGER NOT NULL,
+                payment_date DATE NOT NULL,
+                amount NUMERIC NOT NULL,
+                installment_number INTEGER,
+                payment_method TEXT,
+                notes TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (agreement_id) REFERENCES agreements (id) ON DELETE SET NULL,
+                FOREIGN KEY (debt_id) REFERENCES debts (id) ON DELETE SET NULL,
+                FOREIGN KEY (debtor_id) REFERENCES debtors (id) ON DELETE CASCADE
+            )
+        ''')
+        
     else:
         # SQLite Table Definitions (original)
         cursor.execute('''
@@ -198,6 +235,43 @@ def init_db():
                 value REAL NOT NULL,
                 date TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (debtor_id) REFERENCES debtors (id)
+            )
+        ''')
+        
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS agreements (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                debtor_id INTEGER NOT NULL,
+                debt_id INTEGER,
+                status TEXT DEFAULT 'active',
+                agreement_date TEXT NOT NULL,
+                agreed_value REAL NOT NULL,
+                total_installments INTEGER DEFAULT 1,
+                installment_value REAL,
+                interest_rate REAL DEFAULT 0,
+                first_installment_date TEXT,
+                notes TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (debtor_id) REFERENCES debtors (id),
+                FOREIGN KEY (debt_id) REFERENCES debts (id)
+            )
+        ''')
+        
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS payments (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                agreement_id INTEGER,
+                debt_id INTEGER,
+                debtor_id INTEGER NOT NULL,
+                payment_date TEXT NOT NULL,
+                amount REAL NOT NULL,
+                installment_number INTEGER,
+                payment_method TEXT,
+                notes TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (agreement_id) REFERENCES agreements (id),
+                FOREIGN KEY (debt_id) REFERENCES debts (id),
                 FOREIGN KEY (debtor_id) REFERENCES debtors (id)
             )
         ''')

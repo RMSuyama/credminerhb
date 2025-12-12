@@ -220,11 +220,13 @@ def main_app():
                 st.session_state['active_tab'] = page_name
                 st.rerun()
 
-        nav_button("Painel Geral", "Dashboard", "")
-        nav_button("Devedores", "Cadastro de Devedores", "")
-        nav_button("Dívidas", "Gerenciar Dívidas", "")
-        nav_button("Judicial", "Judicialização", "")
-        nav_button("Simulação", "Negociação / Simulação", "")
+        nav_button("📊 Painel Geral", "Dashboard", "")
+        nav_button("👥 Devedores", "Cadastro de Devedores", "")
+        nav_button("📋 Dívidas", "Gerenciar Dívidas", "")
+        nav_button("⚖️ Judicial", "Judicialização", "")
+        nav_button("💰 Simulação", "Negociação / Simulação", "")
+        nav_button("💳 Pagamentos", "Registrar Pagamento", "")
+        nav_button("✅ Acordos", "Gerenciar Acordos", "")
         
         st.divider()
         
@@ -360,45 +362,256 @@ def main_app():
 
 
     if page == "Dashboard":
-        st.header("Painel Geral")
+        st.header("📊 Painel de Análise - Sistema de Recuperação de Crédito")
+        st.markdown("**Visão geral de desempenho de cobrança e recuperação de crédito**")
+        
         conn = get_connection()
         try:
-            total_debtors = pd.read_sql_query("SELECT count(*) FROM debtors", conn).iloc[0, 0]
-            total_debts_val = pd.read_sql_query("SELECT sum(original_value) FROM debts", conn).iloc[0, 0] or 0
-            count_debts = pd.read_sql_query("SELECT count(*) FROM debts", conn).iloc[0, 0]
+            # ===== QUERIES PARA ANÁLISES =====
+            # Dados básicos
+            total_debtors = pd.read_sql_query("SELECT count(*) as cnt FROM debtors", conn).iloc[0, 0]
+            total_original_value = pd.read_sql_query("SELECT COALESCE(sum(original_value), 0) as total FROM debts", conn).iloc[0, 0]
+            total_debts = pd.read_sql_query("SELECT count(*) as cnt FROM debts", conn).iloc[0, 0]
             
-            # Using Cards for Metrics
-            st.markdown("""
-            <style>
-            div[data-testid="stMetric"] {
-                background-color: #f9f9f9;
-                border: 1px solid #e0e0e0;
-                padding: 15px;
-                border-radius: 8px;
-                box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-            }
-            div[data-testid="stMetric"] label {
-                color: #31333F !important;
-            }
-            div[data-testid="stMetric"] div[data-testid="stMetricValue"] {
-                color: #31333F !important;
-            }
-            </style>
-            """, unsafe_allow_html=True)
+            # Acordos
+            agreements_df = pd.read_sql_query("SELECT * FROM agreements", conn)
+            active_agreements = len(agreements_df[agreements_df['status'] == 'active']) if not agreements_df.empty else 0
+            total_agreed_value = agreements_df['agreed_value'].sum() if not agreements_df.empty else 0
             
-            c1, c2, c3 = st.columns(3)
-            c1.metric("Devedores Cadastrados", total_debtors)
-            c2.metric("Valor Total Original", f"R$ {total_debts_val:,.2f}")
-            c3.metric("Qtd. Dívidas Ativas", count_debts)
+            # Pagamentos realizados
+            payments_df = pd.read_sql_query("SELECT * FROM payments", conn)
+            total_recovered = payments_df['amount'].sum() if not payments_df.empty else 0
+            total_payments = len(payments_df)
             
-            st.markdown("### Atalhos Rápidos")
-            c4, c5 = st.columns(2)
-            if c4.button("Nova Dívida (Ação)"):
-                st.session_state['active_tab'] = "Gerenciar Dívidas"
-                st.rerun()
-            if c5.button("Simular Acordo"):
-                st.session_state['active_tab'] = "Negociação / Simulação"
-                st.rerun()
+            # Taxa de recuperação
+            recovery_rate = (total_recovered / total_original_value * 100) if total_original_value > 0 else 0
+            remaining_value = total_original_value - total_recovered
+            
+            # KPIs principais (linha 1)
+            st.markdown("### 📈 KPIs Principais")
+            col1, col2, col3, col4, col5 = st.columns(5)
+            
+            with col1:
+                st.metric(
+                    label="Devedores Ativos",
+                    value=total_debtors,
+                    delta=None,
+                    help="Número total de devedores cadastrados"
+                )
+            
+            with col2:
+                st.metric(
+                    label="Dívidas",
+                    value=total_debts,
+                    delta=None,
+                    help="Número total de dívidas registradas"
+                )
+            
+            with col3:
+                st.metric(
+                    label="Taxa Recuperação",
+                    value=f"{recovery_rate:.1f}%",
+                    delta=None,
+                    help="Percentual do valor total já recuperado"
+                )
+            
+            with col4:
+                st.metric(
+                    label="Acordos Ativos",
+                    value=active_agreements,
+                    delta=None,
+                    help="Número de acordos em vigor"
+                )
+            
+            with col5:
+                st.metric(
+                    label="Pagamentos",
+                    value=total_payments,
+                    delta=None,
+                    help="Número total de pagamentos recebidos"
+                )
+            
+            # ===== VALORES EM REAIS =====
+            st.markdown("### 💰 Análise de Valores")
+            col1, col2, col3, col4 = st.columns(4)
+            
+            with col1:
+                st.metric(
+                    label="Valor Total em Aberto",
+                    value=f"R$ {total_original_value:,.2f}",
+                    help="Soma de todas as dívidas registradas"
+                )
+            
+            with col2:
+                st.metric(
+                    label="Valor Recuperado",
+                    value=f"R$ {total_recovered:,.2f}",
+                    delta=f"{recovery_rate:.1f}%",
+                    help="Total já recebido em pagamentos"
+                )
+            
+            with col3:
+                st.metric(
+                    label="Valor em Aberto",
+                    value=f"R$ {remaining_value:,.2f}",
+                    help="Ainda a recuperar"
+                )
+            
+            with col4:
+                if active_agreements > 0:
+                    avg_agreed = total_agreed_value / active_agreements if active_agreements > 0 else 0
+                    st.metric(
+                        label="Valor Médio/Acordo",
+                        value=f"R$ {avg_agreed:,.2f}",
+                        help="Valor médio dos acordos ativos"
+                    )
+                else:
+                    st.metric(
+                        label="Valor Médio/Acordo",
+                        value="R$ 0,00",
+                        help="Nenhum acordo ativo"
+                    )
+            
+            # ===== GRÁFICOS ANALÍTICOS =====
+            st.markdown("### 📉 Análises Detalhadas")
+            
+            tab1, tab2, tab3, tab4, tab5 = st.tabs([
+                "Recuperação", "Acordos", "Dívidas", "Desempenho", "Detalhes"
+            ])
+            
+            # TAB 1: Recuperação
+            with tab1:
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    # Gráfico: Recuperação vs Pendente
+                    recovery_data = {
+                        'Status': ['Recuperado', 'Pendente'],
+                        'Valor (R$)': [total_recovered, remaining_value]
+                    }
+                    recovery_chart = pd.DataFrame(recovery_data)
+                    st.bar_chart(recovery_chart.set_index('Status'), use_container_width=True)
+                
+                with col2:
+                    # Proporção de Recuperação (Pizza)
+                    if total_original_value > 0:
+                        fig, ax = __import__('matplotlib.pyplot', fromlist=['pyplot']).subplots(figsize=(8, 6))
+                        sizes = [total_recovered, remaining_value]
+                        labels = [f'Recuperado\nR$ {total_recovered:,.0f}\n({recovery_rate:.1f}%)', 
+                                 f'Pendente\nR$ {remaining_value:,.0f}\n({100-recovery_rate:.1f}%)']
+                        colors = ['#2ecc71', '#e74c3c']
+                        ax.pie(sizes, labels=labels, colors=colors, autopct='', startangle=90)
+                        ax.set_title('Distribuição de Recuperação', fontsize=12, fontweight='bold')
+                        st.pyplot(fig)
+                    else:
+                        st.warning("Sem dados de dívidas para exibir gráfico.")
+            
+            # TAB 2: Acordos
+            with tab2:
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    # Status dos Acordos
+                    if not agreements_df.empty:
+                        agreement_status = agreements_df['status'].value_counts()
+                        st.bar_chart(agreement_status, use_container_width=True)
+                    else:
+                        st.info("Nenhum acordo registrado ainda.")
+                
+                with col2:
+                    # Top Acordos por Valor
+                    if not agreements_df.empty:
+                        top_agreements = agreements_df.nlargest(5, 'agreed_value')[['debtor_id', 'agreed_value', 'status']]
+                        top_agreements.columns = ['Devedor ID', 'Valor Acordo (R$)', 'Status']
+                        st.dataframe(top_agreements, use_container_width=True, hide_index=True)
+                    else:
+                        st.info("Nenhum acordo para exibir.")
+            
+            # TAB 3: Distribuição de Dívidas
+            with tab3:
+                # Dívidas por tipo de contrato
+                debts_by_type = pd.read_sql_query("""
+                    SELECT contract_type, count(*) as qtd, sum(original_value) as total_value
+                    FROM debts
+                    GROUP BY contract_type
+                    ORDER BY total_value DESC
+                """, conn)
+                
+                if not debts_by_type.empty:
+                    col1, col2 = st.columns(2)
+                    
+                    with col1:
+                        st.bar_chart(debts_by_type.set_index('contract_type')['qtd'], use_container_width=True)
+                    
+                    with col2:
+                        st.bar_chart(debts_by_type.set_index('contract_type')['total_value'], use_container_width=True)
+                    
+                    st.dataframe(debts_by_type, use_container_width=True, hide_index=True)
+                else:
+                    st.info("Nenhuma dívida registrada.")
+            
+            # TAB 4: Desempenho de Pagamentos
+            with tab4:
+                # Evolução de pagamentos ao longo do tempo
+                if not payments_df.empty:
+                    payments_df['payment_date'] = pd.to_datetime(payments_df['payment_date'])
+                    payments_timeline = payments_df.groupby('payment_date')['amount'].sum().sort_index()
+                    
+                    st.line_chart(payments_timeline, use_container_width=True)
+                    
+                    # Estatísticas de pagamentos
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        st.metric("Pagamento Médio", f"R$ {payments_df['amount'].mean():,.2f}")
+                    with col2:
+                        st.metric("Maior Pagamento", f"R$ {payments_df['amount'].max():,.2f}")
+                    with col3:
+                        st.metric("Menor Pagamento", f"R$ {payments_df['amount'].min():,.2f}")
+                    
+                    # Tabela de últimos pagamentos
+                    st.subheader("Últimos 10 Pagamentos")
+                    recent_payments = payments_df.nlargest(10, 'payment_date')[['debtor_id', 'amount', 'payment_date', 'installment_number']]
+                    recent_payments.columns = ['Devedor ID', 'Valor (R$)', 'Data', 'Parcela']
+                    st.dataframe(recent_payments, use_container_width=True, hide_index=True)
+                else:
+                    st.info("Nenhum pagamento registrado ainda.")
+            
+            # TAB 5: Detalhes por Devedor
+            with tab5:
+                # Devedores com maiores dívidas
+                debtors_debts = pd.read_sql_query("""
+                    SELECT d.id, d.name, COUNT(db.id) as num_debts, SUM(db.original_value) as total_debt
+                    FROM debtors d
+                    LEFT JOIN debts db ON d.id = db.debtor_id
+                    GROUP BY d.id, d.name
+                    ORDER BY total_debt DESC
+                    LIMIT 10
+                """, conn)
+                
+                if not debtors_debts.empty:
+                    st.subheader("Top 10 Maiores Devedores")
+                    debtors_debts.columns = ['ID', 'Nome', 'Nº Dívidas', 'Total Devido (R$)']
+                    st.dataframe(debtors_debts, use_container_width=True, hide_index=True)
+                else:
+                    st.info("Nenhum devedor registrado.")
+            
+            # ===== ATALHOS RÁPIDOS =====
+            st.markdown("### ⚡ Ações Rápidas")
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                if st.button("➕ Registrar Nova Dívida", use_container_width=True):
+                    st.session_state['active_tab'] = "Gerenciar Dívidas"
+                    st.rerun()
+            
+            with col2:
+                if st.button("✅ Registrar Novo Acordo", use_container_width=True):
+                    st.session_state['active_tab'] = "Negociação / Simulação"
+                    st.rerun()
+            
+            with col3:
+                if st.button("💳 Registrar Pagamento", use_container_width=True):
+                    st.info("Esta funcionalidade será adicionada em breve.")
                 
         finally:
             conn.close()
@@ -1134,6 +1347,262 @@ def main_app():
                         
                         if st.button("Gerar Minuta do Acordo (PDF)"):
                             st.toast("Funcionalidade de PDF em desenvolvimento!", )
+
+    elif page == "Registrar Pagamento":
+        st.header("💳 Registrar Pagamento")
+        st.markdown("**Registro de pagamentos recebidos de devedores**")
+        
+        conn = get_connection()
+        try:
+            # Fetch debtors
+            debtors = get_debtors()
+            
+            if debtors.empty:
+                st.warning("Nenhum devedor cadastrado.")
+            else:
+                debtor_opts = {row['id']: f"{row['name']} ({row['cpf_cnpj']})" for i, row in debtors.iterrows()}
+                selected_debtor_id = st.selectbox("Selecione o Devedor", options=debtor_opts.keys(), format_func=lambda x: debtor_opts[x], key="payment_debtor_select")
+                
+                # Fetch agreements for this debtor
+                agreements = pd.read_sql_query("SELECT * FROM agreements WHERE debtor_id = ? AND status = 'active'", conn, params=(selected_debtor_id,))
+                
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    st.subheader("Registrar Novo Pagamento")
+                    
+                    with st.form("register_payment_form"):
+                        payment_date = st.date_input("Data do Pagamento", value=date.today())
+                        amount = st.number_input("Valor do Pagamento (R$)", min_value=0.01, step=10.0)
+                        payment_method = st.selectbox("Método de Pagamento", ["PIX", "Transferência", "Boleto", "Cheque", "Dinheiro", "Outro"])
+                        
+                        if not agreements.empty:
+                            agreement_opts = {row['id']: f"Acordo #{row['id']} - R$ {row['agreed_value']:.2f}" for i, row in agreements.iterrows()}
+                            selected_agreement_id = st.selectbox("Vinculado a Acordo (Opcional)", options=[None] + list(agreement_opts.keys()), format_func=lambda x: "Sem acordo" if x is None else agreement_opts[x])
+                        else:
+                            selected_agreement_id = None
+                            st.info("Nenhum acordo ativo para este devedor.")
+                        
+                        installment_number = st.number_input("Nº Parcela (Se aplicável)", min_value=0, step=1, value=0)
+                        notes = st.text_area("Observações", height=100)
+                        
+                        submit_payment = st.form_submit_button("Registrar Pagamento", type="primary")
+                        
+                        if submit_payment:
+                            cursor = conn.cursor()
+                            try:
+                                cursor.execute("""
+                                    INSERT INTO payments 
+                                    (debtor_id, debt_id, agreement_id, payment_date, amount, installment_number, payment_method, notes)
+                                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                                """, (
+                                    selected_debtor_id, 
+                                    None, 
+                                    selected_agreement_id,
+                                    payment_date.strftime('%Y-%m-%d'),
+                                    amount,
+                                    installment_number if installment_number > 0 else None,
+                                    payment_method,
+                                    notes
+                                ))
+                                conn.commit()
+                                st.success("✅ Pagamento registrado com sucesso!")
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Erro ao registrar pagamento: {e}")
+                
+                with col2:
+                    st.subheader("Histórico de Pagamentos")
+                    
+                    # Fetch payments for this debtor
+                    payments = pd.read_sql_query("""
+                        SELECT id, payment_date, amount, payment_method, installment_number, agreement_id
+                        FROM payments 
+                        WHERE debtor_id = ? 
+                        ORDER BY payment_date DESC
+                    """, conn, params=(selected_debtor_id,))
+                    
+                    if not payments.empty:
+                        payments['payment_date'] = pd.to_datetime(payments['payment_date'])
+                        
+                        # Summary
+                        st.metric("Total Recebido", f"R$ {payments['amount'].sum():,.2f}")
+                        st.metric("Nº de Pagamentos", len(payments))
+                        
+                        # Recent payments
+                        st.write("**Últimos Pagamentos:**")
+                        for i, payment in payments.head(5).iterrows():
+                            with st.container(border=True):
+                                col_p1, col_p2, col_p3 = st.columns([2, 2, 1])
+                                col_p1.write(f"**{payment['payment_date'].strftime('%d/%m/%Y')}**")
+                                col_p2.write(f"R$ {payment['amount']:,.2f}")
+                                col_p3.write(f"({payment['payment_method']})")
+                        
+                        # Full table
+                        with st.expander("Ver todos os pagamentos"):
+                            display_payments = payments[['payment_date', 'amount', 'payment_method', 'installment_number']].copy()
+                            display_payments.columns = ['Data', 'Valor (R$)', 'Método', 'Parcela']
+                            st.dataframe(display_payments, use_container_width=True, hide_index=True)
+                    else:
+                        st.info("Nenhum pagamento registrado para este devedor.")
+        
+        finally:
+            conn.close()
+
+    elif page == "Gerenciar Acordos":
+        st.header("✅ Gerenciar Acordos")
+        st.markdown("**Criar, atualizar e acompanhar acordos de pagamento**")
+        
+        tab_new_agreement, tab_manage_agreements = st.tabs(["Novo Acordo", "Gerenciar Acordos"])
+        
+        conn = get_connection()
+        try:
+            debtors = get_debtors()
+            
+            if debtors.empty:
+                st.warning("Nenhum devedor cadastrado.")
+            else:
+                # TAB: CRIAR NOVO ACORDO
+                with tab_new_agreement:
+                    st.subheader("Criar Novo Acordo")
+                    
+                    debtor_opts = {row['id']: f"{row['name']} ({row['cpf_cnpj']})" for i, row in debtors.iterrows()}
+                    selected_debtor_id = st.selectbox("Selecione o Devedor", options=debtor_opts.keys(), format_func=lambda x: debtor_opts[x], key="new_agreement_debtor")
+                    
+                    # Fetch debts for this debtor
+                    debts_for_agreement = pd.read_sql_query("SELECT id, description, original_value, due_date FROM debts WHERE debtor_id = ?", conn, params=(selected_debtor_id,))
+                    
+                    with st.form("new_agreement_form"):
+                        agreement_date = st.date_input("Data do Acordo", value=date.today())
+                        
+                        st.write("**Dívida vinculada:**")
+                        if not debts_for_agreement.empty:
+                            debt_opts = {row['id']: f"{row['description']} - R$ {row['original_value']:.2f}" for i, row in debts_for_agreement.iterrows()}
+                            selected_debt_id = st.selectbox("Selecione a dívida", options=[None] + list(debt_opts.keys()), format_func=lambda x: "Sem dívida específica" if x is None else debt_opts[x])
+                        else:
+                            selected_debt_id = None
+                            st.info("Nenhuma dívida para este devedor.")
+                        
+                        col_ag1, col_ag2 = st.columns(2)
+                        
+                        with col_ag1:
+                            agreed_value = st.number_input("Valor Total do Acordo (R$)", min_value=0.01, step=100.0)
+                        
+                        with col_ag2:
+                            total_installments = st.number_input("Total de Parcelas", min_value=1, max_value=360, value=1, step=1)
+                        
+                        col_ag3, col_ag4 = st.columns(2)
+                        
+                        with col_ag3:
+                            installment_value = agreed_value / total_installments if total_installments > 0 else 0
+                            st.metric("Valor por Parcela", f"R$ {installment_value:,.2f}")
+                        
+                        with col_ag4:
+                            interest_rate = st.number_input("Taxa de Juros Mensal (%)", min_value=0.0, max_value=100.0, step=0.1, value=0.0)
+                        
+                        first_installment_date = st.date_input("Data da Primeira Parcela")
+                        agreement_notes = st.text_area("Observações", height=100)
+                        
+                        submit_agreement = st.form_submit_button("Criar Acordo", type="primary")
+                        
+                        if submit_agreement:
+                            cursor = conn.cursor()
+                            try:
+                                cursor.execute("""
+                                    INSERT INTO agreements 
+                                    (debtor_id, debt_id, status, agreement_date, agreed_value, total_installments, installment_value, interest_rate, first_installment_date, notes)
+                                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                """, (
+                                    selected_debtor_id,
+                                    selected_debt_id,
+                                    'active',
+                                    agreement_date.strftime('%Y-%m-%d'),
+                                    agreed_value,
+                                    total_installments,
+                                    installment_value,
+                                    interest_rate,
+                                    first_installment_date.strftime('%Y-%m-%d'),
+                                    agreement_notes
+                                ))
+                                conn.commit()
+                                st.success("✅ Acordo criado com sucesso!")
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Erro ao criar acordo: {e}")
+                
+                # TAB: GERENCIAR ACORDOS EXISTENTES
+                with tab_manage_agreements:
+                    st.subheader("Acordos Existentes")
+                    
+                    # Filters
+                    col_filter1, col_filter2 = st.columns(2)
+                    
+                    with col_filter1:
+                        status_filter = st.selectbox("Filtrar por Status", ["Todos", "active", "completed", "cancelled"])
+                    
+                    with col_filter2:
+                        if status_filter == "Todos":
+                            all_agreements = pd.read_sql_query("SELECT * FROM agreements ORDER BY agreement_date DESC", conn)
+                        else:
+                            all_agreements = pd.read_sql_query("SELECT * FROM agreements WHERE status = ? ORDER BY agreement_date DESC", conn, params=(status_filter,))
+                    
+                    if not all_agreements.empty:
+                        st.metric("Total de Acordos", len(all_agreements))
+                        st.metric("Valor Total em Acordos", f"R$ {all_agreements['agreed_value'].sum():,.2f}")
+                        
+                        st.dataframe(all_agreements[['id', 'debtor_id', 'status', 'agreement_date', 'agreed_value', 'total_installments']], use_container_width=True)
+                        
+                        # Edit/Delete Agreement
+                        with st.expander("Editar ou Deletar Acordo"):
+                            agreement_opts = {row['id']: f"Acordo #{row['id']} - Devedor {row['debtor_id']} - R$ {row['agreed_value']:.2f}" for i, row in all_agreements.iterrows()}
+                            selected_agreement_to_edit = st.selectbox("Selecione o acordo", options=agreement_opts.keys(), format_func=lambda x: agreement_opts[x])
+                            
+                            selected_agreement_data = all_agreements[all_agreements['id'] == selected_agreement_to_edit].iloc[0]
+                            
+                            col_edit1, col_edit2 = st.columns(2)
+                            
+                            with col_edit1:
+                                st.write("**Status Atual:**", selected_agreement_data['status'])
+                                new_status = st.selectbox("Novo Status", ["active", "completed", "cancelled"], index=["active", "completed", "cancelled"].index(selected_agreement_data['status']))
+                                
+                                if st.button("Atualizar Status"):
+                                    cursor = conn.cursor()
+                                    try:
+                                        cursor.execute("UPDATE agreements SET status = ? WHERE id = ?", (new_status, selected_agreement_to_edit))
+                                        conn.commit()
+                                        st.success(f"Status atualizado para '{new_status}'!")
+                                        st.rerun()
+                                    except Exception as e:
+                                        st.error(f"Erro: {e}")
+                            
+                            with col_edit2:
+                                if st.button("Deletar Acordo", key="delete_agreement_btn"):
+                                    st.session_state['confirm_delete_agreement'] = True
+                                    st.session_state['agreement_to_delete'] = selected_agreement_to_edit
+                                
+                                if st.session_state.get('confirm_delete_agreement'):
+                                    st.error(f"Tem certeza que deseja deletar o Acordo #{selected_agreement_to_edit}?")
+                                    col_yes, col_no = st.columns(2)
+                                    
+                                    if col_yes.button("Sim, Deletar"):
+                                        cursor = conn.cursor()
+                                        try:
+                                            cursor.execute("DELETE FROM agreements WHERE id = ?", (st.session_state['agreement_to_delete'],))
+                                            conn.commit()
+                                            st.success("Acordo deletado!")
+                                            st.session_state['confirm_delete_agreement'] = False
+                                            st.rerun()
+                                        except Exception as e:
+                                            st.error(f"Erro: {e}")
+                                    
+                                    if col_no.button("Cancelar"):
+                                        st.session_state['confirm_delete_agreement'] = False
+                                        st.rerun()
+                    else:
+                        st.info("Nenhum acordo encontrado.")
+        
+        finally:
+            conn.close()
 
 if not st.session_state['logged_in']:
     login_page()
