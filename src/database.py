@@ -48,8 +48,25 @@ def init_db():
                 email TEXT,
                 phone TEXT,
                 address TEXT,
+                main_forum TEXT,
+                jurisdiction_state TEXT,
                 notes TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS client_forums (
+                id SERIAL PRIMARY KEY,
+                client_id INTEGER NOT NULL,
+                forum_name TEXT NOT NULL,
+                forum_code TEXT,
+                state TEXT,
+                city TEXT,
+                is_main BOOLEAN DEFAULT false,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (client_id) REFERENCES clients (id) ON DELETE CASCADE,
+                UNIQUE(client_id, forum_code)
             )
         ''')
         
@@ -210,8 +227,25 @@ def init_db():
                 email TEXT,
                 phone TEXT,
                 address TEXT,
+                main_forum TEXT,
+                jurisdiction_state TEXT,
                 notes TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS client_forums (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                client_id INTEGER NOT NULL,
+                forum_name TEXT NOT NULL,
+                forum_code TEXT,
+                state TEXT,
+                city TEXT,
+                is_main INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (client_id) REFERENCES clients (id),
+                UNIQUE(client_id, forum_code)
             )
         ''')
         

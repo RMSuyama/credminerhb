@@ -7,6 +7,7 @@ from src.auth import check_credentials, create_session_token, validate_session_t
 from src.calculator import Calculator
 from src.scraper import update_all_indices
 from src.validators import ContactValidator, CONTACT_STATUS_LIST
+from src.pdf_generator import PDFGenerator
 
 # ===== HELPER FUNCTIONS FOR UI COMPONENTS =====
 
@@ -35,33 +36,7 @@ def page_header(title, subtitle=""):
 
 def render_footer():
     """Render professional footer with company info and signature."""
-    footer_html = """
-    <div class="footer-container">
-        <div class="footer-content">
-            <div class="footer-logo">
-                <div class="footer-logo-icon">
-                    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style="width: 36px; height: 36px; fill: white;">
-                        <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
-                    </svg>
-                </div>
-                <div class="footer-logo-text">CredMiner HB</div>
-            </div>
-            
-            <div class="footer-info">
-                <div class="footer-info-item">
-                    <span class="footer-info-label">Endereço:</span> NASA, Washington D.C., USA
-                </div>
-                <div class="footer-info-item">
-                    <span class="footer-info-label">Email:</span> hb.solutions@gmail.com
-                </div>
-            </div>
-            
-            <div class="footer-divider">
-                halfblood. 2018
-            </div>
-        </div>
-    </div>
-    """
+    footer_html = """<div class="footer-container"><div class="footer-content"><div class="footer-logo"><div class="footer-logo-icon"><svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style="width: 36px; height: 36px; fill: white;"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg></div><div class="footer-logo-text">CredMiner HB</div></div><div class="footer-info"><div class="footer-info-item"><span class="footer-info-label">Endereço:</span> NASA, Washington D.C., USA</div><div class="footer-info-item"><span class="footer-info-label">Email:</span> hb.solutions@gmail.com</div></div><div class="footer-divider">halfblood. 2018</div></div></div>"""
     st.markdown(footer_html, unsafe_allow_html=True)
 
 # Initialize Database (protected so Streamlit doesn't crash on startup if DB is unreachable)
@@ -535,6 +510,7 @@ def main_app():
                 st.rerun()
 
         nav_button("Painel Geral", "Dashboard", "")
+        nav_button("Clientes", "Gerenciar Clientes", "")
         nav_button("Devedores", "Cadastro de Devedores", "")
         nav_button("Dívidas", "Gerenciar Dívidas", "")
         nav_button("Judicial", "Judicialização", "")
@@ -896,6 +872,144 @@ def main_app():
                 if st.button("Registrar Pagamento", use_container_width=True):
                     st.info("Esta funcionalidade será adicionada em breve.")
                 
+        finally:
+            conn.close()
+
+    elif page == "Gerenciar Clientes":
+        page_header("Gerenciar Clientes e Foros", "Gestão multi-CNPJ com jurisdição e foros")
+        
+        conn = get_connection()
+        cursor = conn.cursor()
+        
+        try:
+            # Tabs for client management
+            tab_new_client, tab_manage_clients = st.tabs(["Novo Cliente", "Gerenciar Clientes"])
+            
+            # TAB: CREATE NEW CLIENT
+            with tab_new_client:
+                st.subheader("Cadastrar Novo Cliente")
+                
+                with st.form("new_client_form"):
+                    col1, col2 = st.columns(2)
+                    
+                    with col1:
+                        client_name = st.text_input("Razão Social *", help="Nome da empresa/escritório")
+                        client_cnpj = st.text_input("CNPJ *", help="Ex: 00.000.000/0000-00")
+                        client_email = st.text_input("Email")
+                    
+                    with col2:
+                        client_phone = st.text_input("Telefone")
+                        main_forum = st.text_input("Foro Principal (Jurisdição)", help="Ex: Vara de Execução Fiscal de São Paulo")
+                        jurisdiction_state = st.selectbox("Estado da Jurisdição", ["SP", "RJ", "MG", "BA", "SC", "PR", "RS", "Outro"])
+                    
+                    client_address = st.text_input("Endereço Completo")
+                    client_notes = st.text_area("Observações", height=80)
+                    
+                    submit_client = st.form_submit_button("Cadastrar Cliente", type="primary")
+                    
+                    if submit_client:
+                        if not client_name or not client_cnpj:
+                            st.error("Preencha nome e CNPJ.")
+                        else:
+                            try:
+                                cursor.execute("""
+                                    INSERT INTO clients (name, cnpj, email, phone, address, main_forum, jurisdiction_state, notes)
+                                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                                """, (client_name, client_cnpj, client_email, client_phone, client_address, main_forum, jurisdiction_state, client_notes))
+                                
+                                conn.commit()
+                                
+                                # Get the new client ID
+                                new_client_id = cursor.lastrowid
+                                
+                                # Auto-create main forum record
+                                if main_forum:
+                                    cursor.execute("""
+                                        INSERT INTO client_forums (client_id, forum_name, forum_code, state, is_main)
+                                        VALUES (?, ?, ?, ?, ?)
+                                    """, (new_client_id, main_forum, main_forum.upper().replace(" ", "_"), jurisdiction_state, True))
+                                    conn.commit()
+                                
+                                st.success(f"Cliente '{client_name}' cadastrado com sucesso!")
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Erro ao cadastrar: {e}")
+            
+            # TAB: MANAGE EXISTING CLIENTS
+            with tab_manage_clients:
+                st.subheader("Clientes Registrados")
+                
+                all_clients = pd.read_sql_query("SELECT * FROM clients ORDER BY name", conn)
+                
+                if all_clients.empty:
+                    st.info("Nenhum cliente cadastrado. Crie um novo cliente acima.")
+                else:
+                    st.metric("Total de Clientes", len(all_clients))
+                    
+                    # Display clients
+                    for idx, client in all_clients.iterrows():
+                        with st.expander(f"📋 {client['name']} ({client['cnpj']})"):
+                            col1, col2 = st.columns([0.7, 0.3])
+                            
+                            with col1:
+                                st.write(f"**Email:** {client['email']}")
+                                st.write(f"**Telefone:** {client['phone']}")
+                                st.write(f"**Foro Principal:** {client['main_forum']}")
+                                st.write(f"**Estado:** {client['jurisdiction_state']}")
+                                st.write(f"**Endereço:** {client['address']}")
+                                if client['notes']:
+                                    st.write(f"**Observações:** {client['notes']}")
+                            
+                            with col2:
+                                if st.button("🗑️ Deletar", key=f"del_client_{client['id']}"):
+                                    try:
+                                        cursor.execute("DELETE FROM clients WHERE id = ?", (client['id'],))
+                                        conn.commit()
+                                        st.success("Cliente deletado!")
+                                        st.rerun()
+                                    except Exception as e:
+                                        st.error(f"Erro: {e}")
+                            
+                            # Foros do cliente
+                            st.markdown("**Foros Associados:**")
+                            client_forums = pd.read_sql_query(
+                                "SELECT * FROM client_forums WHERE client_id = ? ORDER BY is_main DESC, forum_name",
+                                conn,
+                                params=(client['id'],)
+                            )
+                            
+                            if not client_forums.empty:
+                                for fidx, forum in client_forums.iterrows():
+                                    badge = "🔹 PRINCIPAL" if forum['is_main'] else "⚪ Adjacente"
+                                    st.write(f"{badge} - {forum['forum_name']} ({forum['state']})")
+                            
+                            # Add new forum
+                            with st.form(f"add_forum_{client['id']}"):
+                                col_f1, col_f2 = st.columns(2)
+                                
+                                with col_f1:
+                                    new_forum_name = st.text_input("Nome do Foro", key=f"forum_name_{client['id']}")
+                                    new_forum_state = st.text_input("Estado", key=f"forum_state_{client['id']}")
+                                
+                                with col_f2:
+                                    new_forum_city = st.text_input("Cidade", key=f"forum_city_{client['id']}")
+                                
+                                if st.form_submit_button("+ Adicionar Foro Adjacente", key=f"submit_forum_{client['id']}"):
+                                    if new_forum_name:
+                                        try:
+                                            forum_code = f"{new_forum_state.upper()}_{new_forum_city.upper().replace(' ', '_')}"
+                                            cursor.execute("""
+                                                INSERT INTO client_forums (client_id, forum_name, forum_code, state, city, is_main)
+                                                VALUES (?, ?, ?, ?, ?, ?)
+                                            """, (client['id'], new_forum_name, forum_code, new_forum_state, new_forum_city, False))
+                                            conn.commit()
+                                            st.success(f"Foro '{new_forum_name}' adicionado!")
+                                            st.rerun()
+                                        except Exception as e:
+                                            st.error(f"Erro: {e}")
+                                    else:
+                                        st.error("Digite o nome do foro.")
+        
         finally:
             conn.close()
 
@@ -1506,8 +1620,67 @@ def main_app():
                 col_m1.metric("Total de Dívidas", len(debts))
                 col_m2.metric("Valor Total Original", f"R$ {debts['original_value'].sum():,.2f}")
                 col_m3.metric("Último Vencimento", debts['due_date'].max() if not debts['due_date'].empty else "-")
-
-            st.subheader("Lista de Dívidas")
+            
+            # PDF Download Options
+            st.divider()
+            st.subheader("Gerar Relatórios")
+            
+            col_pdf1, col_pdf2 = st.columns(2)
+            
+            with col_pdf1:
+                if st.button("📄 Gerar Memória de Cálculo (PDF)"):
+                    if not debts.empty:
+                        try:
+                            pdf_gen = PDFGenerator()
+                            debtor_name = debtor_opts[selected_debtor_id].split('(')[0].strip()
+                            debtor_cpf = selected_debtor_id
+                            
+                            # Prepare debts data
+                            debts_list = debts[['id', 'description', 'due_date', 'original_value']].to_dict('records')
+                            
+                            # Get calculation data from database
+                            conn = get_connection()
+                            cursor = conn.cursor()
+                            cursor.execute("SELECT name, cpf_cnpj FROM debtors WHERE id = ?", (selected_debtor_id,))
+                            debtor_info = cursor.fetchone()
+                            conn.close()
+                            
+                            debtor_name = debtor_info[0] if debtor_info else "Devedor"
+                            debtor_cpf = debtor_info[1] if debtor_info else "N/A"
+                            
+                            # Calculations data
+                            calculations = {
+                                'selic_rate': '10.50%',
+                                'ipca_rate': '6.25%',
+                                'interest_rate': '1.00%',
+                                'fine_amount': f"R$ {debts['original_value'].sum() * 0.02:,.2f}",
+                                'total_updated': f"R$ {debts['original_value'].sum() * 1.05:,.2f}",
+                            }
+                            
+                            pdf_bytes = pdf_gen.generate_debt_memory(
+                                debtor_name, 
+                                debtor_cpf, 
+                                debts_list, 
+                                calculations
+                            )
+                            
+                            st.download_button(
+                                label="⬇️ Baixar Memória de Cálculo",
+                                data=pdf_bytes,
+                                file_name=f"memoria_calculo_{debtor_cpf}_{pd.Timestamp.now().strftime('%Y%m%d')}.pdf",
+                                mime="application/pdf"
+                            )
+                            st.success("PDF gerado com sucesso!")
+                        except Exception as e:
+                            st.error(f"Erro ao gerar PDF: {e}")
+                    else:
+                        st.warning("Nenhuma dívida para gerar relatório.")
+            
+            with col_pdf2:
+                if st.button("📊 Gerar Extrato de Pagamentos (PDF)"):
+                    st.info("Funcionalidade em desenvolvimento para relatórios de pagamentos.")
+            
+            st.divider()
             
             if not debts.empty:
                 # Ensure due_date is datetime for the editor
@@ -1527,6 +1700,9 @@ def main_app():
                 # Reorder columns for display
                 display_cols = ['Item', 'id', 'contract_type', 'description', 'original_value', 'due_date', 'fine_type']
                 visible_cols = ['Item', 'contract_type', 'description', 'original_value', 'due_date', 'fine_type']
+                
+                st.subheader("1️⃣ Descrição das Dívidas")
+                st.markdown("Nesta seção estão registradas todas as dívidas em aberto do devedor, com seus valores originais e datas de vencimento.")
                 
                 edited_debts = st.data_editor(
                     debts[display_cols],
@@ -1634,41 +1810,46 @@ def main_app():
                     original_value = col_n3.number_input("Valor Original (R$)", min_value=0.01, step=0.01)
                     start_due_date = col_n4.date_input("Data de Vencimento (1ª Parcela)")
                     
+                    
                     st.markdown("---")
                     is_batch = st.checkbox("Gerar em Lote (Parcelas)?")
-                    num_installments = 1
-                    if is_batch:
-                        num_installments = st.number_input("Número de Parcelas", min_value=2, value=12, step=1)
                     
                     submit = st.form_submit_button("Adicionar Dívida(s)")
-                    
-                    if submit:
-                        if original_value <= 0:
-                            st.error("O valor deve ser maior que zero.")
-                        else:
-                            conn = get_connection()
-                            cursor = conn.cursor()
-                            try:
-                                from dateutil.relativedelta import relativedelta
-                                
-                                for i in range(num_installments):
-                                    current_due_date = start_due_date + relativedelta(months=i)
-                                    
-                                    if is_batch:
-                                        current_desc = f"{description} ({i+1}/{num_installments})"
-                                    else:
-                                        current_desc = description
-                                    
-                                    cursor.execute("INSERT INTO debts (debtor_id, contract_type, description, original_value, due_date, fine_type) VALUES (?, ?, ?, ?, ?, ?)",
-                                                   (selected_debtor_id, contract_type, current_desc, original_value, current_due_date, fine_type))
-                                
-                                conn.commit()
-                                st.success(f"{num_installments} dívida(s) adicionada(s)!")
-                                st.rerun()
-                            except Exception as e:
-                                st.error(f"Erro ao adicionar: {e}")
-                            finally:
-                                conn.close()
+            
+            # Pergunta número de parcelas fora do form (permite renderização dinâmica)
+            if is_batch:
+                num_installments = st.number_input("Número de Parcelas a Gerar", min_value=2, value=12, max_value=120, step=1, help="Quantas parcelas mensais você deseja criar?")
+            else:
+                num_installments = 1
+            
+            # Processar o envio do formulário
+            if submit:
+                if original_value <= 0:
+                    st.error("O valor deve ser maior que zero.")
+                else:
+                    conn = get_connection()
+                    cursor = conn.cursor()
+                    try:
+                        from dateutil.relativedelta import relativedelta
+                        
+                        for i in range(num_installments):
+                            current_due_date = start_due_date + relativedelta(months=i)
+                            
+                            if is_batch:
+                                current_desc = f"{description} ({i+1}/{num_installments})"
+                            else:
+                                current_desc = description
+                            
+                            cursor.execute("INSERT INTO debts (debtor_id, contract_type, description, original_value, due_date, fine_type) VALUES (?, ?, ?, ?, ?, ?)",
+                                           (selected_debtor_id, contract_type, current_desc, original_value, current_due_date, fine_type))
+                        
+                        conn.commit()
+                        st.success(f"{num_installments} dívida(s) adicionada(s)!")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Erro ao adicionar: {e}")
+                    finally:
+                        conn.close()
 
     elif page == "Negociação / Simulação":
         page_header("Negociação e Acordo Avançado")
@@ -2025,6 +2206,52 @@ def main_app():
                         st.metric("Total de Acordos", len(all_agreements))
                         st.metric("Valor Total em Acordos", f"R$ {all_agreements['agreed_value'].sum():,.2f}")
                         
+                        st.divider()
+                        st.subheader("Gerar Relatório de Acordo")
+                        
+                        agreement_opts = {row['id']: f"Acordo #{row['id']} - R$ {row['agreed_value']:,.2f}" for i, row in all_agreements.iterrows()}
+                        selected_agreement_pdf = st.selectbox("Selecione o acordo para gerar PDF", options=agreement_opts.keys(), format_func=lambda x: agreement_opts[x], key="agreement_pdf_select")
+                        
+                        if st.button("📄 Gerar Relatório de Acordo (PDF)"):
+                            try:
+                                pdf_gen = PDFGenerator()
+                                agreement_data = all_agreements[all_agreements['id'] == selected_agreement_pdf].iloc[0]
+                                
+                                # Get debtor info
+                                debtor_cursor = conn.cursor()
+                                debtor_cursor.execute("SELECT name, cpf_cnpj FROM debtors WHERE id = ?", (agreement_data['debtor_id'],))
+                                debtor_info = debtor_cursor.fetchone()
+                                
+                                debtor_name = debtor_info[0] if debtor_info else "Devedor"
+                                debtor_cpf = debtor_info[1] if debtor_info else "N/A"
+                                
+                                # Get payments for this agreement
+                                payments = pd.read_sql_query(
+                                    "SELECT payment_date, amount FROM payments WHERE agreement_id = ? ORDER BY payment_date", 
+                                    conn, 
+                                    params=(selected_agreement_pdf,)
+                                )
+                                
+                                payments_list = payments.to_dict('records') if not payments.empty else []
+                                
+                                pdf_bytes = pdf_gen.generate_agreement_report(
+                                    debtor_name,
+                                    debtor_cpf,
+                                    agreement_data.to_dict(),
+                                    payments_list
+                                )
+                                
+                                st.download_button(
+                                    label="⬇️ Baixar Relatório de Acordo",
+                                    data=pdf_bytes,
+                                    file_name=f"acordo_{agreement_data['id']}_{pd.Timestamp.now().strftime('%Y%m%d')}.pdf",
+                                    mime="application/pdf"
+                                )
+                                st.success("PDF gerado com sucesso!")
+                            except Exception as e:
+                                st.error(f"Erro ao gerar PDF: {e}")
+                        
+                        st.divider()
                         st.dataframe(all_agreements[['id', 'debtor_id', 'status', 'agreement_date', 'agreed_value', 'total_installments']], use_container_width=True)
                         
                         # Edit/Delete Agreement
