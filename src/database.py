@@ -60,6 +60,21 @@ def init_db():
         ''')
         
         cursor.execute('''
+            CREATE TABLE IF NOT EXISTS contact_history (
+                id SERIAL PRIMARY KEY,
+                debtor_id INTEGER NOT NULL,
+                contact_type TEXT NOT NULL,
+                contact_value TEXT NOT NULL,
+                status TEXT DEFAULT 'ativo',
+                notes TEXT,
+                attempt_date DATE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (debtor_id) REFERENCES debtors (id) ON DELETE CASCADE
+            )
+        ''')
+        
+        cursor.execute('''
             CREATE TABLE IF NOT EXISTS guarantors (
                 id SERIAL PRIMARY KEY,
                 debtor_id INTEGER NOT NULL,
@@ -172,6 +187,21 @@ def init_db():
                 email TEXT,
                 phone TEXT,
                 notes TEXT
+            )
+        ''')
+        
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS contact_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                debtor_id INTEGER NOT NULL,
+                contact_type TEXT NOT NULL,
+                contact_value TEXT NOT NULL,
+                status TEXT DEFAULT 'ativo',
+                notes TEXT,
+                attempt_date TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (debtor_id) REFERENCES debtors (id)
             )
         ''')
         

@@ -6,6 +6,7 @@ from src.database import init_db, get_connection
 from src.auth import check_credentials, create_session_token, validate_session_token
 from src.calculator import Calculator
 from src.scraper import update_all_indices
+from src.validators import ContactValidator, CONTACT_STATUS_LIST
 
 # Initialize Database (protected so Streamlit doesn't crash on startup if DB is unreachable)
 db_init_error = None
@@ -846,26 +847,104 @@ def main_app():
         with tab1:
             st.subheader("Cadastrar Novo Devedor")
             with st.form("new_debtor"):
-                name = st.text_input("Nome")
-                cpf = st.text_input("CPF/CNPJ")
-                rg = st.text_input("RG")
-                email = st.text_input("Email")
-                phone = st.text_input("Telefone")
-                notes = st.text_area("Observações")
-                submit = st.form_submit_button("Salvar Devedor")
+                name = st.text_input("Nome *", help="Nome completo do devedor")
+                
+                col1, col2 = st.columns(2)
+                with col1:
+                    cpf = st.text_input("CPF/CNPJ *", help="Ex: 123.456.789-00 ou apenas números")
+                with col2:
+                    rg = st.text_input("RG (Opcional)", help="Ex: 12.345.678-9 ou apenas números")
+                
+                col3, col4 = st.columns(2)
+                with col3:
+                    email = st.text_input("Email (Opcional)", help="Ex: exemplo@email.com")
+                with col4:
+                    phone = st.text_input("Telefone (Opcional)", help="Ex: (11) 98765-4321 ou apenas números")
+                
+                notes = st.text_area("Observações", height=80)
+                
+                submit = st.form_submit_button("Salvar Devedor", type="primary")
                 
                 if submit:
-                    conn = get_connection()
-                    cursor = conn.cursor()
-                    try:
-                        cursor.execute("INSERT INTO debtors (name, cpf_cnpj, rg, email, phone, notes) VALUES (?, ?, ?, ?, ?, ?)",
-                                       (name, cpf, rg, email, phone, notes))
-                        conn.commit()
-                        st.success("Devedor cadastrado com sucesso!")
-                    except Exception as e:
-                        st.error(f"Erro ao salvar: {e}")
-                    finally:
-                        conn.close()
+                    errors = []
+                    
+                    # Validação de nome
+                    if not name or len(name.strip()) < 3:
+                        errors.append("Nome deve ter pelo menos 3 caracteres")
+                    
+                    # Validação de CPF/CNPJ
+                    if not cpf or len(cpf.strip()) == 0:
+                        errors.append("CPF/CNPJ é obrigatório")
+                    else:
+                        is_valid_cpf, cpf_result = ContactValidator.validate_cpf(cpf)
+                        if is_valid_cpf:
+                            cpf = cpf_result
+                        else:
+                            errors.append(f"CPF/CNPJ: {cpf_result}")
+                    
+                    # Validação de RG (opcional)
+                    if rg and len(rg.strip()) > 0:
+                        is_valid_rg, rg_result = ContactValidator.validate_rg(rg)
+                        if is_valid_rg:
+                            rg = rg_result
+                        else:
+                            errors.append(f"RG: {rg_result}")
+                    else:
+                        rg = None
+                    
+                    # Validação de Email (opcional)
+                    if email and len(email.strip()) > 0:
+                        is_valid_email, email_result = ContactValidator.validate_email(email)
+                        if is_valid_email:
+                            email = email_result
+                        else:
+                            errors.append(f"Email: {email_result}")
+                    else:
+                        email = None
+                    
+                    # Validação de Telefone (opcional)
+                    if phone and len(phone.strip()) > 0:
+                        is_valid_phone, phone_result = ContactValidator.validate_phone(phone)
+                        if is_valid_phone:
+                            phone = phone_result
+                        else:
+                            errors.append(f"Telefone: {phone_result}")
+                    else:
+                        phone = None
+                    
+                    if errors:
+                        for error in errors:
+                            st.error(error)
+                    else:
+                        conn = get_connection()
+                        cursor = conn.cursor()
+                        try:
+                            cursor.execute("INSERT INTO debtors (name, cpf_cnpj, rg, email, phone, notes) VALUES (?, ?, ?, ?, ?, ?)",
+                                           (name, cpf, rg, email, phone, notes))
+                            
+                            # Registrar contatos no histórico
+                            debtor_id = cursor.lastrowid if hasattr(cursor, 'lastrowid') else None
+                            
+                            if debtor_id:
+                                # Registrar email no histórico
+                                if email:
+                                    cursor.execute("INSERT INTO contact_history (debtor_id, contact_type, contact_value, status) VALUES (?, ?, ?, ?)",
+                                                 (debtor_id, 'email', email, 'ativo'))
+                                
+                                # Registrar telefone no histórico
+                                if phone:
+                                    cursor.execute("INSERT INTO contact_history (debtor_id, contact_type, contact_value, status) VALUES (?, ?, ?, ?)",
+                                                 (debtor_id, 'telefone', phone, 'ativo'))
+                            
+                            conn.commit()
+                            st.success("Devedor cadastrado com sucesso!")
+                        except Exception as e:
+                            if "UNIQUE constraint failed" in str(e) or "Duplicate entry" in str(e):
+                                st.error("Este CPF/CNPJ já está cadastrado no sistema")
+                            else:
+                                st.error(f"Erro ao salvar: {e}")
+                        finally:
+                            conn.close()
 
         with tab2:
             st.subheader("Gerenciar Devedor Existente")
@@ -958,7 +1037,7 @@ def main_app():
                             st.session_state['confirm_delete_debtor'] = False
                             st.rerun()
                 
-                man_tab1, man_tab2 = st.tabs(["Endereços", "Fiadores"])
+                man_tab1, man_tab2, man_tab3 = st.tabs(["Endereços", "Fiadores", "Histórico de Contatos"])
                 
                 # --- ADDRESS MANAGEMENT ---
                 with man_tab1:
@@ -1135,6 +1214,122 @@ def main_app():
                                     st.dataframe(g_addrs[['cep', 'street', 'number', 'neighborhood', 'city', 'state']], use_container_width=True)
                     else:
                         st.info("Nenhum fiador cadastrado.")
+                
+                # --- CONTACT HISTORY MANAGEMENT ---
+                with man_tab3:
+                    st.markdown("### Histórico de Contatos")
+                    st.markdown("Registre tentativas de contato e marque números/emails que não funcionam para evitar re-consultas pagas")
+                    
+                    # Fetch existing contacts
+                    conn = get_connection()
+                    contact_history = pd.read_sql_query(
+                        "SELECT id, contact_type, contact_value, status, attempt_date, notes FROM contact_history WHERE debtor_id = ? ORDER BY updated_at DESC",
+                        conn,
+                        params=(selected_debtor_id,)
+                    )
+                    conn.close()
+                    
+                    # Add new contact entry
+                    with st.expander("Registrar Novo Contato"):
+                        col_c1, col_c2 = st.columns(2)
+                        with col_c1:
+                            contact_type = st.selectbox("Tipo", ["telefone", "email", "endereco"], key="contact_type_select")
+                        with col_c2:
+                            contact_status = st.selectbox("Status", CONTACT_STATUS_LIST, key="contact_status_select")
+                        
+                        contact_value = st.text_input("Valor do Contato", placeholder="Ex: (11) 98765-4321 ou email@exemplo.com")
+                        attempt_date = st.date_input("Data da Tentativa", value=date.today())
+                        contact_notes = st.text_area("Notas", placeholder="Ex: Respondeu / Desligou / Email inválido / Etc", height=60)
+                        
+                        if st.button("Registrar Contato", type="primary"):
+                            if not contact_value or len(contact_value.strip()) == 0:
+                                st.error("Digite o valor do contato")
+                            else:
+                                conn = get_connection()
+                                cursor = conn.cursor()
+                                try:
+                                    cursor.execute("""
+                                        INSERT INTO contact_history (debtor_id, contact_type, contact_value, status, attempt_date, notes)
+                                        VALUES (?, ?, ?, ?, ?, ?)
+                                    """, (selected_debtor_id, contact_type, contact_value, contact_status, attempt_date.strftime('%Y-%m-%d'), contact_notes))
+                                    conn.commit()
+                                    st.success("Contato registrado!")
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error(f"Erro: {e}")
+                                finally:
+                                    conn.close()
+                    
+                    # Display contact history
+                    if not contact_history.empty:
+                        st.markdown("#### Contatos Registrados")
+                        
+                        # Format for display
+                        display_history = contact_history.copy()
+                        display_history.columns = ['ID', 'Tipo', 'Valor', 'Status', 'Data Tentativa', 'Notas']
+                        
+                        st.dataframe(
+                            display_history[['Tipo', 'Valor', 'Status', 'Data Tentativa']],
+                            use_container_width=True,
+                            hide_index=True
+                        )
+                        
+                        # Edit/Delete contact
+                        with st.expander("Editar ou Deletar Contato"):
+                            contact_opts = {row['id']: f"{row['contact_type'].upper()} - {row['contact_value']} ({row['status']})" for i, row in contact_history.iterrows()}
+                            selected_contact_id = st.selectbox("Selecione", options=contact_opts.keys(), format_func=lambda x: contact_opts[x], key="contact_select")
+                            
+                            selected_contact = contact_history[contact_history['id'] == selected_contact_id].iloc[0]
+                            
+                            col_edit, col_del = st.columns(2)
+                            
+                            with col_edit:
+                                new_status = st.selectbox("Novo Status", CONTACT_STATUS_LIST, index=CONTACT_STATUS_LIST.index(selected_contact['status']), key="new_status_contact")
+                                
+                                if st.button("Atualizar Status"):
+                                    conn = get_connection()
+                                    try:
+                                        cursor = conn.cursor()
+                                        cursor.execute(
+                                            "UPDATE contact_history SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                                            (new_status, selected_contact_id)
+                                        )
+                                        conn.commit()
+                                        st.success("Status atualizado!")
+                                        st.rerun()
+                                    except Exception as e:
+                                        st.error(f"Erro: {e}")
+                                    finally:
+                                        conn.close()
+                            
+                            with col_del:
+                                if st.button("Deletar Contato"):
+                                    st.session_state['confirm_delete_contact'] = True
+                                    st.session_state['contact_to_delete'] = selected_contact_id
+                                
+                                if st.session_state.get('confirm_delete_contact'):
+                                    st.warning("Tem certeza?")
+                                    col_yes, col_no = st.columns(2)
+                                    
+                                    if col_yes.button("Sim, deletar"):
+                                        conn = get_connection()
+                                        try:
+                                            cursor = conn.cursor()
+                                            cursor.execute("DELETE FROM contact_history WHERE id = ?", (st.session_state['contact_to_delete'],))
+                                            conn.commit()
+                                            st.success("Deletado!")
+                                            st.session_state['confirm_delete_contact'] = False
+                                            st.rerun()
+                                        except Exception as e:
+                                            st.error(f"Erro: {e}")
+                                        finally:
+                                            conn.close()
+                                    
+                                    if col_no.button("Cancelar"):
+                                        st.session_state['confirm_delete_contact'] = False
+                                        st.rerun()
+                    else:
+                        st.info("Nenhum contato registrado no histórico")
 
     elif page == "Gerenciar Dívidas":
         st.header("Gerenciar Dívidas")
