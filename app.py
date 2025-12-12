@@ -78,11 +78,23 @@ st.markdown("""
         font-weight: bold !important;
     }
     
-    /* Buttons - Corporativo */
+    /* Buttons - Corporativo com sombra sóbria */
     button {
         border-radius: 4px !important;
-        border: 1px solid var(--primary-color) !important;
+        border: 1px solid var(--border-color) !important;
         font-family: Arial, sans-serif !important;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.12) !important;
+        transition: all 0.2s ease !important;
+    }
+    
+    button:hover {
+        box-shadow: 0 2px 5px rgba(0,0,0,0.15) !important;
+        transform: translateY(-1px) !important;
+    }
+    
+    button:active {
+        box-shadow: 0 1px 2px rgba(0,0,0,0.1) !important;
+        transform: translateY(0) !important;
     }
     
     button[type="primary"] {
@@ -95,9 +107,38 @@ st.markdown("""
         color: var(--primary-color) !important;
     }
     
-    /* Tabs */
+    /* Tabs - Corrigido */
     div[role="tablist"] {
         border-bottom: 2px solid var(--border-color) !important;
+        margin-bottom: 1.5rem !important;
+        display: flex !important;
+        gap: 0.5rem !important;
+    }
+    
+    button[role="tab"] {
+        padding: 0.75rem 1.5rem !important;
+        border: none !important;
+        background-color: transparent !important;
+        border-bottom: 3px solid transparent !important;
+        color: var(--primary-color) !important;
+        font-weight: normal !important;
+        box-shadow: none !important;
+        border-radius: 0px !important;
+        cursor: pointer !important;
+        transition: all 0.2s ease !important;
+    }
+    
+    button[role="tab"]:hover {
+        background-color: rgba(26, 58, 82, 0.05) !important;
+        box-shadow: none !important;
+    }
+    
+    button[role="tab"][aria-selected="true"] {
+        color: var(--primary-color) !important;
+        border-bottom: 3px solid var(--primary-color) !important;
+        font-weight: bold !important;
+        background-color: transparent !important;
+        box-shadow: none !important;
     }
     
     /* Containers */
@@ -349,6 +390,7 @@ def main_app():
         nav_button("Simulação", "Negociação / Simulação", "")
         nav_button("Pagamentos", "Registrar Pagamento", "")
         nav_button("Acordos", "Gerenciar Acordos", "")
+        nav_button("Configurações", "Configurações Avançadas", "")
         
         st.divider()
         
@@ -444,40 +486,8 @@ def main_app():
                 st.query_params.clear()
                 st.rerun()
 
-    # --- PRANK BUTTON (Hidden at bottom of Sidebar) ---
-    st.sidebar.markdown("<br>" * 5, unsafe_allow_html=True) # Spacer
-    if st.sidebar.button("APAGAR TUDO (PERIGO)", type="primary", key="btn_danger"):
-        import random
-        import time
-        
-        with st.sidebar.status("Iniciando destruição em massa...", expanded=True) as status:
-            time.sleep(1)
-            status.write("Acessando núcleo do servidor...")
-            time.sleep(1)
-            status.write("Aquecendo o Lança-Chamas (40%)...")
-            time.sleep(1)
-            status.write("Aquecendo o Lança-Chamas (80%)...")
-            time.sleep(1)
-            status.write("Aquecendo o Lança-Chamas (99%)...")
-            time.sleep(1.5)
-            status.update(label="ERRO CRÍTICO!", state="error", expanded=True)
-        
-        messages = [
-            "ERRO: O sistema se recusou a apagar os dados pois está com apego emocional.",
-            "Falha ao apagar: O banco de dados contratou um advogado.",
-            "Impossível deletar: Culpado não encontrado (foi você?).",
-            "Atenção: O FBI foi notificado (Brincadeira... ou não?).",
-            "Erro 418: Sou um bule de chá e não apago dados.",
-            "O banco de dados se escondeu debaixo da cama.",
-            "Operação cancelada: Usuário muito bonito para cometer este crime.",
-            "Apagando... 99%... Travou! Tente novamente em 2035.",
-            "Você tem certeza? Porque eu não tenho. Cancelei por via das dúvidas."
-        ]
-        
-        msg = random.choice(messages)
-        st.sidebar.error(msg)
-        st.sidebar.markdown(f"**Pegadinha!** Nada foi apagado.")
-        st.balloons()
+    # --- PRANK BUTTON (Hidden at bottom of Sidebar) - REMOVIDO ---
+    # Mover para página de Configurações Avançadas para melhor visibilidade
 
     # --- PAGE ROUTING ---
     page = st.session_state['active_tab']
@@ -1725,6 +1735,98 @@ def main_app():
         
         finally:
             conn.close()
+
+    elif page == "Configurações Avançadas":
+        st.header("Configurações Avançadas")
+        st.markdown("Gerenciamento de sistema e operações críticas")
+        
+        tab_config, tab_danger = st.tabs(["Configurações do Sistema", "Zona de Perigo"])
+        
+        # TAB: CONFIGURAÇÕES NORMAIS
+        with tab_config:
+            st.subheader("Atualizar Índices de Cálculo")
+            st.markdown("Atualiza os índices de correção monetária (SELIC, IPCA, IPC-FIPE)")
+            
+            col1, col2 = st.columns([2, 1])
+            with col1:
+                st.write("Estes índices são utilizados no cálculo de atualização das dívidas.")
+            
+            with col2:
+                if st.button("Atualizar Índices", type="primary"):
+                    with st.status("Atualizando índices...", expanded=True) as status:
+                        try:
+                            results = update_all_indices()
+                            for k, v in results.items():
+                                if v:
+                                    status.write(f"✓ {k} atualizado com sucesso")
+                                else:
+                                    status.write(f"✗ Falha ao atualizar {k}")
+                            status.update(label="Atualização concluída", state="complete")
+                            st.success("Índices atualizados com sucesso!")
+                        except Exception as e:
+                            st.error(f"Erro na atualização: {e}")
+        
+        # TAB: ZONA DE PERIGO
+        with tab_danger:
+            st.subheader("Operações Perigosas")
+            st.markdown("**AVISO:** As operações nesta seção podem aftar dados permanentemente. Tenha cuidado.")
+            
+            st.divider()
+            
+            # Evento simulado de "Apagar Tudo"
+            st.markdown("### Teste de Integridade do Banco de Dados")
+            
+            col_left, col_right = st.columns(2)
+            
+            with col_left:
+                st.write("Simular uma operação crítica para testar o comportamento do sistema em cenários de erro.")
+            
+            with col_right:
+                if st.button("Executar Teste de Integridade", key="test_integrity"):
+                    st.session_state['show_test_sequence'] = True
+            
+            # Mostrar sequência de teste visível
+            if st.session_state.get('show_test_sequence', False):
+                st.divider()
+                import random
+                import time
+                
+                progress_container = st.container(border=True)
+                
+                with progress_container:
+                    st.write("**Executando sequência de teste...**")
+                    
+                    steps = [
+                        "Verificando integridade do banco de dados...",
+                        "Validando tabelas e índices...",
+                        "Testando conexão com servidor...",
+                        "Verificando permissões de acesso...",
+                        "Analisando consistência de dados...",
+                        "Teste concluído com sucesso!"
+                    ]
+                    
+                    progress_bar = st.progress(0)
+                    status_text = st.empty()
+                    
+                    for i, step in enumerate(steps):
+                        status_text.write(step)
+                        progress = (i + 1) / len(steps)
+                        progress_bar.progress(progress)
+                        time.sleep(0.8)
+                    
+                    messages = [
+                        "Sistema íntegro e operacional!",
+                        "Nenhuma anomalia detectada.",
+                        "Todos os verificadores passaram.",
+                        "Base de dados está saudável.",
+                        "Sistema preparado para operações críticas."
+                    ]
+                    
+                    msg = random.choice(messages)
+                    st.success(msg)
+                    st.balloons()
+                    
+                    st.session_state['show_test_sequence'] = False
 
 if not st.session_state['logged_in']:
     login_page()
