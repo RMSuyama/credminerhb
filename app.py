@@ -1045,8 +1045,11 @@ def main_app():
                     val_custas = col_l2.number_input("Valor (R$)", min_value=0.0, step=10.0)
                     if st.form_submit_button("Lançar Custa"):
                         conn = get_connection()
-                        conn.execute("INSERT INTO legal_expenses (debtor_id, description, value, date) VALUES (?, ?, ?, ?)",
-                                     (selected_debtor_id, desc_custas, val_custas, date.today().strftime('%Y-%m-%d')))
+                        # Determine client_id from debtor
+                        debtor_info = pd.read_sql_query("SELECT client_id FROM debtors WHERE id = ?", conn, params=(selected_debtor_id,))
+                        client_id_for_debtor = debtor_info.iloc[0]['client_id'] if not debtor_info.empty else None
+                        conn.execute("INSERT INTO legal_expenses (debtor_id, client_id, description, value, date) VALUES (?, ?, ?, ?, ?)",
+                                     (selected_debtor_id, client_id_for_debtor, desc_custas, val_custas, date.today().strftime('%Y-%m-%d')))
                         conn.commit()
                         conn.close()
                         st.success("Custa lançada com sucesso!")
@@ -1278,6 +1281,13 @@ def main_app():
         with tab1:
             st.subheader("Cadastrar Novo Devedor")
             with st.form("new_debtor"):
+                # Select client for the new debtor (multi-tenant)
+                clients_df = get_clients()
+                if clients_df.empty:
+                    st.warning("Cadastre um cliente primeiro em 'Gerenciar Clientes' antes de cadastrar um devedor.")
+                    st.stop()
+                client_options = clients_df['id'].tolist()
+                selected_client_id = st.selectbox('Cliente', options=client_options, format_func=lambda x: clients_df[clients_df['id']==x].iloc[0]['name'])
                 name = st.text_input("Nome *", help="Nome completo do devedor")
                 
                 col1, col2 = st.columns(2)
@@ -1350,8 +1360,8 @@ def main_app():
                         conn = get_connection()
                         cursor = conn.cursor()
                         try:
-                            cursor.execute("INSERT INTO debtors (name, cpf_cnpj, rg, email, phone, notes) VALUES (?, ?, ?, ?, ?, ?)",
-                                           (name, cpf, rg, email, phone, notes))
+                            cursor.execute("INSERT INTO debtors (client_id, name, cpf_cnpj, rg, email, phone, notes) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                                           (selected_client_id, name, cpf, rg, email, phone, notes))
                             
                             # Registrar contatos no histórico
                             debtor_id = cursor.lastrowid if hasattr(cursor, 'lastrowid') else None
@@ -1359,13 +1369,13 @@ def main_app():
                             if debtor_id:
                                 # Registrar email no histórico
                                 if email:
-                                    cursor.execute("INSERT INTO contact_history (debtor_id, contact_type, contact_value, status) VALUES (?, ?, ?, ?)",
-                                                 (debtor_id, 'email', email, 'ativo'))
+                                    cursor.execute("INSERT INTO contact_history (debtor_id, client_id, contact_type, contact_value, status) VALUES (?, ?, ?, ?, ?)",
+                                                 (debtor_id, selected_client_id, 'email', email, 'ativo'))
                                 
                                 # Registrar telefone no histórico
                                 if phone:
-                                    cursor.execute("INSERT INTO contact_history (debtor_id, contact_type, contact_value, status) VALUES (?, ?, ?, ?)",
-                                                 (debtor_id, 'telefone', phone, 'ativo'))
+                                    cursor.execute("INSERT INTO contact_history (debtor_id, client_id, contact_type, contact_value, status) VALUES (?, ?, ?, ?, ?)",
+                                                 (debtor_id, selected_client_id, 'telefone', phone, 'ativo'))
                             
                             conn.commit()
                             st.success("Devedor cadastrado com sucesso!")
@@ -1501,10 +1511,12 @@ def main_app():
                             if submit_addr:
                                 conn = get_connection()
                                 cursor = conn.cursor()
+                                # include client_id
+                                client_for_debtor = debtor['client_id'] if 'client_id' in debtor and debtor['client_id'] else None
                                 cursor.execute("""
-                                    INSERT INTO addresses (debtor_id, cep, street, number, neighborhood, city, state, is_primary)
-                                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                                """, (selected_debtor_id, cep_input, street, number, neighborhood, city, state, is_primary))
+                                    INSERT INTO addresses (debtor_id, client_id, cep, street, number, neighborhood, city, state, is_primary)
+                                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                """, (selected_debtor_id, client_for_debtor, cep_input, street, number, neighborhood, city, state, is_primary))
                                 conn.commit()
                                 conn.close()
                                 st.success("Endereço adicionado!")
@@ -1583,10 +1595,11 @@ def main_app():
                             if submit_g:
                                 conn = get_connection()
                                 cursor = conn.cursor()
+                                client_for_debtor = debtor['client_id'] if 'client_id' in debtor and debtor['client_id'] else None
                                 cursor.execute("""
-                                    INSERT INTO guarantors (debtor_id, name, cpf, rg, email, phone, notes)
-                                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                                """, (selected_debtor_id, g_name, g_cpf, g_rg, g_email, g_phone, g_notes))
+                                    INSERT INTO guarantors (debtor_id, client_id, name, cpf, rg, email, phone, notes)
+                                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                                """, (selected_debtor_id, client_for_debtor, g_name, g_cpf, g_rg, g_email, g_phone, g_notes))
                                 conn.commit()
                                 conn.close()
                                 st.success("Fiador adicionado!")
@@ -1628,10 +1641,11 @@ def main_app():
                                     if st.form_submit_button("Adicionar Endereço ao Fiador"):
                                         conn = get_connection()
                                         cursor = conn.cursor()
+                                        client_for_debtor = debtor['client_id'] if 'client_id' in debtor and debtor['client_id'] else None
                                         cursor.execute("""
-                                            INSERT INTO addresses (guarantor_id, cep, street, number, neighborhood, city, state)
-                                            VALUES (?, ?, ?, ?, ?, ?, ?)
-                                        """, (g['id'], g_cep_input, g_street, g_number, g_neigh, g_city, g_state))
+                                            INSERT INTO addresses (guarantor_id, client_id, cep, street, number, neighborhood, city, state)
+                                            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                                        """, (g['id'], client_for_debtor, g_cep_input, g_street, g_number, g_neigh, g_city, g_state))
                                         conn.commit()
                                         conn.close()
                                         st.success("Endereço do fiador salvo!")
@@ -1679,10 +1693,11 @@ def main_app():
                                 conn = get_connection()
                                 cursor = conn.cursor()
                                 try:
+                                    client_for_debtor = debtor['client_id'] if 'client_id' in debtor and debtor['client_id'] else None
                                     cursor.execute("""
-                                        INSERT INTO contact_history (debtor_id, contact_type, contact_value, status, attempt_date, notes)
-                                        VALUES (?, ?, ?, ?, ?, ?)
-                                    """, (selected_debtor_id, contact_type, contact_value, contact_status, attempt_date.strftime('%Y-%m-%d'), contact_notes))
+                                        INSERT INTO contact_history (debtor_id, client_id, contact_type, contact_value, status, attempt_date, notes)
+                                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                                    """, (selected_debtor_id, client_for_debtor, contact_type, contact_value, contact_status, attempt_date.strftime('%Y-%m-%d'), contact_notes))
                                     conn.commit()
                                     st.success("Contato registrado!")
                                     st.rerun()
@@ -1999,6 +2014,9 @@ def main_app():
                     try:
                         from dateutil.relativedelta import relativedelta
                         
+                        # Determine client_id for debtor
+                        debtor_info = pd.read_sql_query("SELECT client_id FROM debtors WHERE id = ?", conn, params=(selected_debtor_id,))
+                        client_for_debtor = debtor_info.iloc[0]['client_id'] if not debtor_info.empty else None
                         for i in range(num_installments):
                             current_due_date = start_due_date + relativedelta(months=i)
                             
@@ -2007,8 +2025,8 @@ def main_app():
                             else:
                                 current_desc = description
                             
-                            cursor.execute("INSERT INTO debts (debtor_id, contract_type, description, original_value, due_date, fine_type) VALUES (?, ?, ?, ?, ?, ?)",
-                                           (selected_debtor_id, contract_type, current_desc, original_value, current_due_date, fine_type))
+                            cursor.execute("INSERT INTO debts (debtor_id, client_id, contract_type, description, original_value, due_date, fine_type) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                                           (selected_debtor_id, client_for_debtor, contract_type, current_desc, original_value, current_due_date, fine_type))
                         
                         conn.commit()
                         st.success(f"{num_installments} dívida(s) adicionada(s)!")
@@ -2215,12 +2233,16 @@ def main_app():
                         if submit_payment:
                             cursor = conn.cursor()
                             try:
+                                # find client id from debtor to store in payment
+                                debtor_info = pd.read_sql_query("SELECT client_id FROM debtors WHERE id = ?", conn, params=(selected_debtor_id,))
+                                client_for_debtor = debtor_info.iloc[0]['client_id'] if not debtor_info.empty else None
                                 cursor.execute("""
                                     INSERT INTO payments 
-                                    (debtor_id, debt_id, agreement_id, payment_date, amount, installment_number, payment_method, notes)
-                                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                                    (debtor_id, client_id, debt_id, agreement_id, payment_date, amount, installment_number, payment_method, notes)
+                                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                                 """, (
                                     selected_debtor_id, 
+                                    client_for_debtor,
                                     None, 
                                     selected_agreement_id,
                                     payment_date.strftime('%Y-%m-%d'),
@@ -2331,12 +2353,16 @@ def main_app():
                         if submit_agreement:
                             cursor = conn.cursor()
                             try:
+                                # find client id from debtor
+                                debtor_info = pd.read_sql_query("SELECT client_id FROM debtors WHERE id = ?", conn, params=(selected_debtor_id,))
+                                client_for_debtor = debtor_info.iloc[0]['client_id'] if not debtor_info.empty else None
                                 cursor.execute("""
                                     INSERT INTO agreements 
-                                    (debtor_id, debt_id, status, agreement_date, agreed_value, total_installments, installment_value, interest_rate, first_installment_date, notes)
-                                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                    (debtor_id, client_id, debt_id, status, agreement_date, agreed_value, total_installments, installment_value, interest_rate, first_installment_date, notes)
+                                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                                 """, (
                                     selected_debtor_id,
+                                    client_for_debtor,
                                     selected_debt_id,
                                     'active',
                                     agreement_date.strftime('%Y-%m-%d'),

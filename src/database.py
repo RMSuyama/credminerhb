@@ -740,3 +740,42 @@ def delete_petition_template(template_id):
     conn.commit()
     conn.close()
     return True
+
+
+def delete_debtor_by_cpf(cpf_cnpj: str):
+    """Delete a debtor and related records by CPF/CNPJ (digits-only match).
+
+    Returns deleted debtor id if deleted, else None.
+    """
+    if not cpf_cnpj:
+        return None
+    digits = ''.join(filter(str.isdigit, str(cpf_cnpj)))
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        # Fetch all debtors and match by digits-only
+        cursor.execute('SELECT id, cpf_cnpj FROM debtors')
+        rows = cursor.fetchall()
+        target_id = None
+        for row in rows:
+            # row format differs by db driver
+            row_id = row[0]
+            row_cpf = row[1]
+            row_digits = ''.join(filter(str.isdigit, str(row_cpf or '')))
+            if row_digits == digits:
+                target_id = row_id
+                break
+        if target_id is None:
+            return None
+        # Delete using FK cascade
+        # If we attempted Supabase but fell back to SQLite (connection is sqlite3.Connection),
+        # use SQLite parameter style. Otherwise use the Supabase/Postgres style.
+        use_postgres_style = USE_SUPABASE and not isinstance(conn, sqlite3.Connection)
+        if use_postgres_style:
+            cursor.execute('DELETE FROM debtors WHERE id = %s', (target_id,))
+        else:
+            cursor.execute('DELETE FROM debtors WHERE id = ?', (target_id,))
+        conn.commit()
+        return target_id
+    finally:
+        conn.close()

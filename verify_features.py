@@ -18,7 +18,17 @@ def verify_features():
 
     # 2. Insert dummy
     try:
-        c.execute("INSERT INTO legal_expenses (debtor_id, description, value, date) VALUES (999, 'Test Expense', 150.00, '2023-01-01')")
+        # Ensure a test client exists
+        c.execute("SELECT id FROM clients LIMIT 1")
+        row = c.fetchone()
+        if row is None:
+            c.execute("INSERT INTO clients (name, cnpj, email, phone, address, main_forum, jurisdiction_state, notes) VALUES ('Test Client', '00.000.000/0000-00', 'test@example.com', '0000000000', 'Test Address', 'Test Forum', 'SP', 'Test Client')")
+            conn.commit()
+            c.execute("SELECT id FROM clients LIMIT 1")
+            row = c.fetchone()
+        test_client_id = row[0]
+        # Insert legal expense linked to a non-existent debtor id but valid client id for schema testing
+        c.execute("INSERT INTO legal_expenses (debtor_id, client_id, description, value, date) VALUES (999, ?, 'Test Expense', 150.00, '2023-01-01')", (test_client_id,))
         conn.commit()
         print("✅ Inserted test expense.")
     except Exception as e:
