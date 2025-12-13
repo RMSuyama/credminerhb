@@ -1809,9 +1809,54 @@ def main_app():
             
             col_pdf1, col_pdf2 = st.columns(2)
             
-            with col_pdf1:
-                if st.button("📄 Gerar Memória de Cálculo (PDF)"):
-                    if not debts.empty:
+            with col_pdf2:
+                # Payments extract period selection
+                pay_start = st.date_input("Período - De", value=date.today().replace(day=1), key="payments_start")
+                pay_end = st.date_input("Período - Até", value=date.today(), key="payments_end")
+                if st.button("📊 Gerar Extrato de Pagamentos (PDF)"):
+                    try:
+                        # Fetch debtor info
+                        conn = get_connection()
+                        cursor = conn.cursor()
+                        cursor.execute("SELECT name, cpf_cnpj FROM debtors WHERE id = ?", (selected_debtor_id,))
+                        info = cursor.fetchone()
+                        debtor_name = info[0] if info else "Devedor"
+                        debtor_cpf = info[1] if info else "N/A"
+
+                        payments_df = pd.read_sql_query(
+                            "SELECT payment_date, amount, payment_method, notes as description FROM payments WHERE debtor_id = ? AND payment_date BETWEEN ? AND ? ORDER BY payment_date",
+                            conn,
+                            params=(selected_debtor_id, pay_start, pay_end)
+                        )
+                        conn.close()
+
+                        payments_list = []
+                        for _, r in payments_df.iterrows():
+                            payments_list.append({
+                                'payment_date': r['payment_date'],
+                                'description': r.get('description', ''),
+                                'payment_method': r.get('payment_method', ''),
+                                'amount': r['amount']
+                            })
+
+                        if not payments_list:
+                            st.warning("Nenhum pagamento encontrado no período solicitado.")
+                        else:
+                            pdf_bytes = PDFGenerator().generate_payment_extract(
+                                debtor_name,
+                                debtor_cpf,
+                                pay_start.strftime('%d/%m/%Y'),
+                                pay_end.strftime('%d/%m/%Y'),
+                                payments_list
+                            )
+                            st.download_button(
+                                label="⬇️ Baixar Extrato de Pagamentos (PDF)",
+                                data=pdf_bytes,
+                                file_name=f"extrato_pagamentos_{debtor_cpf}_{pd.Timestamp.now().strftime('%Y%m%d')}.pdf",
+                                mime="application/pdf"
+                            )
+                    except Exception as e:
+                        st.error(f"Erro ao gerar Extrato de Pagamentos: {e}")
                         try:
                             pdf_gen = PDFGenerator()
                             debtor_name = debtor_opts[selected_debtor_id].split('(')[0].strip()
@@ -2125,7 +2170,63 @@ def main_app():
                     
                     # Report Button
                     if st.button("Gerar Memorial de Cálculo (Original)", help="Gera o relatório da dívida atualizada sem acordo (Cálculo Puro)."):
-                         st.toast("Funcionalidade de PDF (Memorial) em desenvolvimento!", )
+                        try:
+                            # Build debts list from calculated results
+                            debts_for_pdf = []
+                            # debts is the original debts DataFrame; results is list of calc dicts
+                            debts_lookup = {row['id']: row for i, row in debts.iterrows()} if not debts.empty else {}
+                            for res in results:
+                                debt_id = res.get('id')
+                                original_value = res.get('original', 0)
+                                description = res.get('description', '-')
+                                due_date = '-'
+                                try:
+                                    # if the debt is an expense (exp_ prefix)
+                                    if isinstance(debt_id, str) and debt_id.startswith('exp_'):
+                                        exp_id = int(debt_id.replace('exp_', ''))
+                                        exp_row = expenses.loc[expenses['id'] == exp_id]
+                                        if not exp_row.empty:
+                                            due_date = exp_row.iloc[0]['date']
+                                    else:
+                                        lookup = debts_lookup.get(debt_id)
+                                        if lookup is not None:
+                                            due_date = lookup['due_date']
+                                except Exception:
+                                    due_date = '-'
+                                debts_for_pdf.append({
+                                    'id': debt_id,
+                                    'description': description,
+                                    'due_date': due_date,
+                                    'original_value': original_value,
+                                    'status': 'Aberta'
+                                })
+
+                            calculations_data = {
+                                'selic_rate': 'N/A',
+                                'ipca_rate': 'N/A',
+                                'interest_rate': 'N/A',
+                                'fine_amount': f"R$ {subtotal_corrected * 0.02:,.2f}",
+                                'total_updated': f"R$ {subtotal_corrected:,.2f}"
+                            }
+
+                            # Get debtor info
+                            conn = get_connection()
+                            cursor = conn.cursor()
+                            cursor.execute("SELECT name, cpf_cnpj FROM debtors WHERE id = ?", (selected_debtor_id,))
+                            debtor_info = cursor.fetchone()
+                            conn.close()
+                            debtor_name = debtor_info[0] if debtor_info else 'Devedor'
+                            debtor_cpf = debtor_info[1] if debtor_info else 'N/A'
+
+                            pdf_bytes = PDFGenerator().generate_debt_memory(debtor_name, debtor_cpf, debts_for_pdf, calculations_data)
+                            st.download_button(
+                                label="⬇️ Baixar Memorial de Cálculo (PDF)",
+                                data=pdf_bytes,
+                                file_name=f"memorial_{debtor_cpf}_{pd.Timestamp.now().strftime('%Y%m%d')}.pdf",
+                                mime="application/pdf"
+                            )
+                        except Exception as e:
+                            st.error(f"Erro ao gerar Memorial de Cálculo: {e}")
 
                 st.divider()
                 st.subheader("2. Proposta de Acordo")
@@ -2188,7 +2289,47 @@ def main_app():
                         st.markdown(f"### {installments}x de R$ {installment_val:,.2f}")
                         
                         if st.button("Gerar Minuta do Acordo (PDF)"):
-                            st.toast("Funcionalidade de PDF em desenvolvimento!", )
+                            try:
+                                # Build agreement data for PDF
+                                first_installment_date = (calc_date + relativedelta(months=1)).strftime('%d/%m/%Y')
+                                agreement_data = {
+                                    'status': 'PROPOSTA',
+                                    'agreement_date': date.today().strftime('%d/%m/%Y'),
+                                    'agreed_value': final_total,
+                                    'total_installments': int(installments),
+                                    'installment_value': float(installment_val),
+                                    'first_installment_date': first_installment_date
+                                }
+
+                                # Build payment schedule
+                                payments_data = []
+                                for i in range(int(installments)):
+                                    sched_date = (calc_date + relativedelta(months=1 + i)).strftime('%d/%m/%Y')
+                                    payments_data.append({
+                                        'scheduled_date': sched_date,
+                                        'payment_date': '-',
+                                        'amount': float(installment_val),
+                                        'status': 'Pendente'
+                                    })
+
+                                # Get debtor info
+                                conn = get_connection()
+                                cursor = conn.cursor()
+                                cursor.execute("SELECT name, cpf_cnpj FROM debtors WHERE id = ?", (selected_debtor_id,))
+                                debtor_info = cursor.fetchone()
+                                conn.close()
+                                debtor_name = debtor_info[0] if debtor_info else 'Devedor'
+                                debtor_cpf = debtor_info[1] if debtor_info else 'N/A'
+
+                                pdf_bytes = PDFGenerator().generate_agreement_report(debtor_name, debtor_cpf, agreement_data, payments_data)
+                                st.download_button(
+                                    label="⬇️ Baixar Minuta do Acordo (PDF)",
+                                    data=pdf_bytes,
+                                    file_name=f"minuta_acordo_{debtor_cpf}_{pd.Timestamp.now().strftime('%Y%m%d')}.pdf",
+                                    mime="application/pdf"
+                                )
+                            except Exception as e:
+                                st.error(f"Erro ao gerar Minuta do Acordo: {e}")
 
     elif page == "Registrar Pagamento":
         page_header("Registrar Pagamento", "Registro de pagamentos recebidos de devedores")
