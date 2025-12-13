@@ -217,6 +217,57 @@ def init_db():
             )
         ''')
         
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS judicial_processes (
+                id SERIAL PRIMARY KEY,
+                debtor_id INTEGER NOT NULL,
+                client_id INTEGER NOT NULL,
+                debt_id INTEGER,
+                process_type TEXT NOT NULL,
+                process_number TEXT UNIQUE,
+                forum_id INTEGER,
+                vara TEXT,
+                distribution_date DATE,
+                status TEXT DEFAULT 'ativo',
+                description TEXT,
+                notes TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (debtor_id) REFERENCES debtors (id) ON DELETE CASCADE,
+                FOREIGN KEY (client_id) REFERENCES clients (id) ON DELETE CASCADE,
+                FOREIGN KEY (debt_id) REFERENCES debts (id) ON DELETE SET NULL,
+                FOREIGN KEY (forum_id) REFERENCES client_forums (id) ON DELETE SET NULL
+            )
+        ''')
+        
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS petition_templates (
+                id SERIAL PRIMARY KEY,
+                name TEXT NOT NULL,
+                process_type TEXT NOT NULL,
+                description TEXT,
+                template_content TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS judicial_petitions (
+                id SERIAL PRIMARY KEY,
+                process_id INTEGER NOT NULL,
+                petition_type TEXT NOT NULL,
+                template_id INTEGER,
+                petition_date DATE,
+                status TEXT DEFAULT 'rascunho',
+                content TEXT,
+                notes TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (process_id) REFERENCES judicial_processes (id) ON DELETE CASCADE,
+                FOREIGN KEY (template_id) REFERENCES petition_templates (id) ON DELETE SET NULL
+            )
+        ''')
+        
     else:
         # SQLite Table Definitions (original)
         cursor.execute('''
@@ -389,6 +440,7 @@ def init_db():
                 agreement_id INTEGER,
                 debt_id INTEGER,
                 debtor_id INTEGER NOT NULL,
+                client_id INTEGER NOT NULL,
                 payment_date TEXT NOT NULL,
                 amount REAL NOT NULL,
                 installment_number INTEGER,
@@ -397,12 +449,69 @@ def init_db():
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (agreement_id) REFERENCES agreements (id),
                 FOREIGN KEY (debt_id) REFERENCES debts (id),
-                FOREIGN KEY (debtor_id) REFERENCES debtors (id)
+                FOREIGN KEY (debtor_id) REFERENCES debtors (id),
+                FOREIGN KEY (client_id) REFERENCES clients (id)
+            )
+        ''')
+        
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS judicial_processes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                debtor_id INTEGER NOT NULL,
+                client_id INTEGER NOT NULL,
+                debt_id INTEGER,
+                process_type TEXT NOT NULL,
+                process_number TEXT UNIQUE,
+                forum_id INTEGER,
+                vara TEXT,
+                distribution_date TEXT,
+                status TEXT DEFAULT 'ativo',
+                description TEXT,
+                notes TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (debtor_id) REFERENCES debtors (id),
+                FOREIGN KEY (client_id) REFERENCES clients (id),
+                FOREIGN KEY (debt_id) REFERENCES debts (id),
+                FOREIGN KEY (forum_id) REFERENCES client_forums (id)
+            )
+        ''')
+        
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS petition_templates (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                process_type TEXT NOT NULL,
+                description TEXT,
+                template_content TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS judicial_petitions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                process_id INTEGER NOT NULL,
+                petition_type TEXT NOT NULL,
+                template_id INTEGER,
+                petition_date TEXT,
+                status TEXT DEFAULT 'rascunho',
+                content TEXT,
+                notes TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (process_id) REFERENCES judicial_processes (id),
+                FOREIGN KEY (template_id) REFERENCES petition_templates (id)
             )
         ''')
     
     conn.commit()
     conn.close()
+    # Seed in-memory petition templates into the DB if table is empty
+    try:
+        seed_default_petition_templates()
+    except Exception:
+        pass
     create_default_admin()
 
 def create_default_admin():
@@ -425,3 +534,133 @@ def create_default_admin():
         print("Default admin user created.")
     
     conn.close()
+
+
+def get_petition_templates(process_type=None):
+    """Return petition templates from DB filtered by process_type if provided."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    if process_type:
+        query = 'SELECT id, name, process_type, description, template_content FROM petition_templates WHERE process_type = %s' if USE_SUPABASE else 'SELECT id, name, process_type, description, template_content FROM petition_templates WHERE process_type = ?'
+        cursor.execute(query, (process_type,))
+    else:
+        query = 'SELECT id, name, process_type, description, template_content FROM petition_templates'
+        cursor.execute(query)
+    rows = cursor.fetchall()
+    conn.close()
+    templates = []
+    for row in rows:
+        templates.append({
+            'id': row[0],
+            'name': row[1],
+            'process_type': row[2],
+            'description': row[3],
+            'template_content': row[4],
+        })
+    return templates
+
+
+def seed_default_petition_templates():
+    """Seed default petition templates from package file into DB if none exist."""
+    try:
+        from src.petition_templates import get_all_petition_types as _get_defaults
+        defaults = _get_defaults()
+    except Exception:
+        return
+
+    conn = get_connection()
+    cursor = conn.cursor()
+    # Check if any templates exist
+    cursor.execute('SELECT count(*) FROM petition_templates')
+    count = cursor.fetchone()[0]
+    if count == 0:
+        # Insert defaults
+        for key, data in defaults.items():
+            # key is like 'inicial_juntada_custas'
+            process_type = key.split('_')[0]
+            name = data.get('name')
+            description = data.get('description')
+            template_content = data.get('content')
+            if USE_SUPABASE:
+                cursor.execute('INSERT INTO petition_templates (name, process_type, description, template_content) VALUES (%s, %s, %s, %s)', (name, process_type, description, template_content))
+            else:
+                cursor.execute('INSERT INTO petition_templates (name, process_type, description, template_content) VALUES (?, ?, ?, ?)', (name, process_type, description, template_content))
+        conn.commit()
+    conn.close()
+
+
+def list_judicial_processes(filters=None):
+    """List judicial processes with optional filters.
+
+    Filters: dict keys may include client_id, process_type, status, forum_id, vara, distribution_date_from, distribution_date_to
+    """
+    conn = get_connection()
+    cursor = conn.cursor()
+    base_query = 'SELECT id, debtor_id, client_id, debt_id, process_type, process_number, forum_id, vara, distribution_date, status, description, notes FROM judicial_processes'
+    params = []
+    if filters:
+        clauses = []
+        if 'client_id' in filters and filters['client_id']:
+            clauses.append('client_id = %s' if USE_SUPABASE else 'client_id = ?')
+            params.append(filters['client_id'])
+        if 'process_type' in filters and filters['process_type']:
+            clauses.append('process_type = %s' if USE_SUPABASE else 'process_type = ?')
+            params.append(filters['process_type'])
+        if 'status' in filters and filters['status']:
+            clauses.append('status = %s' if USE_SUPABASE else 'status = ?')
+            params.append(filters['status'])
+        if 'forum_id' in filters and filters['forum_id']:
+            clauses.append('forum_id = %s' if USE_SUPABASE else 'forum_id = ?')
+            params.append(filters['forum_id'])
+        if 'vara' in filters and filters['vara']:
+            clauses.append('vara = %s' if USE_SUPABASE else 'vara = ?')
+            params.append(filters['vara'])
+        if 'distribution_date_from' in filters and filters['distribution_date_from']:
+            clauses.append('distribution_date >= %s' if USE_SUPABASE else 'distribution_date >= ?')
+            params.append(filters['distribution_date_from'])
+        if 'distribution_date_to' in filters and filters['distribution_date_to']:
+            clauses.append('distribution_date <= %s' if USE_SUPABASE else 'distribution_date <= ?')
+            params.append(filters['distribution_date_to'])
+        if clauses:
+            base_query += ' WHERE ' + ' AND '.join(clauses)
+    cursor.execute(base_query, tuple(params))
+    rows = cursor.fetchall()
+    conn.close()
+    processes = []
+    for row in rows:
+        processes.append({
+            'id': row[0],
+            'debtor_id': row[1],
+            'client_id': row[2],
+            'debt_id': row[3],
+            'process_type': row[4],
+            'process_number': row[5],
+            'forum_id': row[6],
+            'vara': row[7],
+            'distribution_date': row[8],
+            'status': row[9],
+            'description': row[10],
+            'notes': row[11],
+        })
+    return processes
+
+
+def create_judicial_petition(process_id, petition_type, template_id=None, content=None, petition_date=None, status='rascunho'):
+    """Create a judicial petition entry in DB.
+    Returns created petition id.
+    """
+    conn = get_connection()
+    cursor = conn.cursor()
+    if petition_date is None:
+        import datetime
+        petition_date = datetime.date.today()
+    if USE_SUPABASE:
+        cursor.execute('INSERT INTO judicial_petitions (process_id, petition_type, template_id, petition_date, status, content) VALUES (%s, %s, %s, %s, %s, %s) RETURNING id', (process_id, petition_type, template_id, petition_date, status, content))
+        result = cursor.fetchone()
+        petition_id = result[0]
+    else:
+        cursor.execute('INSERT INTO judicial_petitions (process_id, petition_type, template_id, petition_date, status, content) VALUES (?, ?, ?, ?, ?, ?)', (process_id, petition_type, template_id, petition_date, status, content))
+        petition_id = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    return petition_id

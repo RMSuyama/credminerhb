@@ -370,3 +370,52 @@ class PDFGenerator:
         doc.build(elements)
         buffer.seek(0)
         return buffer.getvalue()
+
+    def generate_petition_pdf(self, title: str, petition_text: str, metadata: dict = None):
+        """
+        Generate a petition PDF with a title and the petition body text. Returns bytes.
+
+        Args:
+            title: Title of the petition
+            petition_text: Full petition text (plain text with line breaks)
+            metadata: Optional dict containing metadata (process_number, forum, vara, dates)
+        Returns:
+            bytes - PDF content
+        """
+        buffer = io.BytesIO()
+        doc = SimpleDocTemplate(buffer, pagesize=A4, topMargin=0.75*inch, bottomMargin=0.75*inch)
+        elements = []
+
+        # Header
+        elements.append(Paragraph(title.upper(), self.styles['CustomTitle']))
+        elements.append(Paragraph("CredMiner HB - Recuperação de Crédito", self.styles['CustomSubtitle']))
+        elements.append(Spacer(1, 0.2*inch))
+
+        # Metadata block
+        if metadata:
+            meta_lines = []
+            for k, v in metadata.items():
+                meta_lines.append(f"<b>{k.replace('_', ' ').title()}:</b> {v}")
+            elements.append(Paragraph("<br/>".join(meta_lines), self.styles['Normal']))
+            elements.append(Spacer(1, 0.15*inch))
+
+        # Petition body - respect paragraphs
+        for paragraph in petition_text.split("\n\n"):
+            elements.append(Paragraph(paragraph.replace("\n", "<br/>") , self.styles['Normal']))
+            elements.append(Spacer(1, 0.12*inch))
+
+        # Spacer + Footer
+        elements.append(Spacer(1, 0.5*inch))
+        footer_text = f"CredMiner HB | NASA, Washington D.C., USA | hb.solutions@gmail.com | halfblood. 2018"
+        elements.append(Paragraph(footer_text, ParagraphStyle(
+            'Footer',
+            parent=self.styles['Normal'],
+            fontSize=8,
+            textColor=colors.grey,
+            alignment=TA_CENTER,
+            borderPadding=10,
+        )))
+
+        doc.build(elements)
+        buffer.seek(0)
+        return buffer.getvalue()

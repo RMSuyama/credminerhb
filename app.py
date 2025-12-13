@@ -2,7 +2,10 @@ import streamlit as st
 import pandas as pd
 from datetime import date
 from decimal import Decimal
-from src.database import init_db, get_connection
+import io
+import zipfile
+from src.database import init_db, get_connection, list_judicial_processes, get_petition_templates, create_judicial_petition
+from src.petition_templates import render_template as render_template_text
 from src.auth import check_credentials, create_session_token, validate_session_token
 from src.calculator import Calculator
 from src.scraper import update_all_indices
@@ -409,6 +412,13 @@ def login_page():
 def get_debtors():
     conn = get_connection()
     df = pd.read_sql_query("SELECT * FROM debtors", conn)
+    conn.close()
+    return df
+
+
+def get_clients():
+    conn = get_connection()
+    df = pd.read_sql_query("SELECT * FROM clients", conn)
     conn.close()
     return df
 
@@ -1102,6 +1112,163 @@ def main_app():
                     st.info("Nenhuma custa judicial lançada para este devedor.")
         else:
             st.warning("Cadastre devedores primeiro.")
+
+            # ---- Gerenciar Processos Judiciais (Lista / Filtros / Geração em Massa) ----
+            st.divider()
+            st.subheader("Gerenciar Processos Judiciais")
+
+            # Filters
+            clients_df = get_clients()
+            client_options = [None]
+            if not clients_df.empty:
+                client_options += clients_df['id'].tolist()
+            def _client_format(x):
+                if x is None:
+                    return 'Todos'
+                try:
+                    return clients_df[clients_df['id'] == x].iloc[0]['name']
+                except Exception:
+                    return str(x)
+            selected_client_id = st.selectbox("Filtrar por Cliente (opcional)", options=client_options, format_func=_client_format)
+
+            process_type_options = [None, 'inicial', 'cumprimento']
+            selected_process_type = st.selectbox("Tipo de Processo (opcional)", options=process_type_options, format_func=lambda x: 'Todos' if x is None else x)
+
+            status_options = [None, 'ativo', 'suspenso', 'arquivado', 'extinto']
+            selected_status = st.selectbox("Status (opcional)", options=status_options, format_func=lambda x: 'Todos' if x is None else x)
+
+            # Date filter for distribution_date
+            use_date_filter = st.checkbox('Filtrar por data de distribuição')
+            if use_date_filter:
+                col_d1, col_d2 = st.columns(2)
+                with col_d1:
+                    dist_from = st.date_input("Distribuição - De", value=date.today())
+                with col_d2:
+                    dist_to = st.date_input("Distribuição - Até", value=date.today())
+            else:
+                dist_from = None
+                dist_to = None
+
+            # Button to refresh list
+            if st.button("Aplicar Filtros"):
+                st.session_state['apply_process_filters'] = True
+
+            # Build filters dict
+            filters = {}
+            if selected_client_id:
+                filters['client_id'] = selected_client_id
+            if selected_process_type:
+                filters['process_type'] = selected_process_type
+            if selected_status:
+                filters['status'] = selected_status
+            if dist_from:
+                filters['distribution_date_from'] = dist_from.strftime('%Y-%m-%d')
+            if dist_to:
+                filters['distribution_date_to'] = dist_to.strftime('%Y-%m-%d')
+
+            processes = list_judicial_processes(filters)
+            processes_df = pd.DataFrame(processes)
+
+            if processes_df.empty:
+                st.info('Nenhum processo encontrado com os filtros informados.')
+            else:
+                # Enrich with debtor and client names
+                conn = get_connection()
+                for i, row in processes_df.iterrows():
+                    debtor_row = pd.read_sql_query('SELECT id, name, cpf_cnpj FROM debtors WHERE id = ?', conn, params=(row['debtor_id'],))
+                    client_row = pd.read_sql_query('SELECT id, name, cnpj FROM clients WHERE id = ?', conn, params=(row['client_id'],))
+                    processes_df.at[i, 'debtor_name'] = debtor_row.iloc[0]['name'] if not debtor_row.empty else ''
+                    processes_df.at[i, 'debtor_cpf_cnpj'] = debtor_row.iloc[0]['cpf_cnpj'] if not debtor_row.empty else ''
+                    processes_df.at[i, 'client_name'] = client_row.iloc[0]['name'] if not client_row.empty else ''
+                conn.close()
+
+                st.markdown('### Processos Encontrados')
+                st.dataframe(processes_df[['id', 'process_number', 'debtor_name', 'client_name', 'process_type', 'status', 'distribution_date', 'vara']], use_container_width=True)
+
+                # Multi-select processes to generate petitions
+                process_ids = processes_df['id'].tolist()
+                selected_processes = st.multiselect('Selecione processos para gerar petições', options=process_ids, format_func=lambda x: f"{x} - {processes_df[processes_df['id']==x].iloc[0]['process_number']}")
+
+                # Select templates
+                # Fetch templates matching process_type filter if set, otherwise all
+                templates = get_petition_templates(selected_process_type)
+                if templates:
+                    template_options = {t['id']: t['name'] for t in templates}
+                    selected_template_ids = st.multiselect('Selecione modelos de petição a aplicar', options=list(template_options.keys()), format_func=lambda x: template_options[x])
+                else:
+                    st.info('Não há modelos de petição cadastrados para o tipo selecionado.')
+                    selected_template_ids = []
+
+                # Bulk generation
+                if st.button('Gerar Petições em Lote'):
+                    if not selected_processes:
+                        st.error('Selecione pelo menos um processo para gerar petições.')
+                    elif not selected_template_ids:
+                        st.error('Selecione pelo menos um modelo de petição.')
+                    else:
+                        pdf_gen = PDFGenerator()
+                        files_for_zip = []
+                        created_ids = []
+                        # For each process, prepare context and create petitions
+                        conn = get_connection()
+                        cur = conn.cursor()
+                        for pid in selected_processes:
+                            # fetch process details
+                            proc = pd.read_sql_query('SELECT * FROM judicial_processes WHERE id = ?', conn, params=(pid,)).iloc[0]
+                            debtor = pd.read_sql_query('SELECT * FROM debtors WHERE id = ?', conn, params=(proc['debtor_id'],)).iloc[0]
+                            client = pd.read_sql_query('SELECT * FROM clients WHERE id = ?', conn, params=(proc['client_id'],)).iloc[0]
+                            debt = None
+                            if proc['debt_id']:
+                                debt_query = pd.read_sql_query('SELECT * FROM debts WHERE id = ?', conn, params=(proc['debt_id'],))
+                                if not debt_query.empty:
+                                    debt = debt_query.iloc[0]
+
+                            # forum name
+                            forum_name = None
+                            if proc['forum_id']:
+                                forum_q = pd.read_sql_query('SELECT forum_name FROM client_forums WHERE id = ?', conn, params=(proc['forum_id'],))
+                                if not forum_q.empty:
+                                    forum_name = forum_q.iloc[0]['forum_name']
+
+                            context = {
+                                'debtor_name': debtor['name'],
+                                'debtor_cpf_cnpj': debtor['cpf_cnpj'],
+                                'process_number': proc['process_number'],
+                                'forum': forum_name or proc['forum_id'],
+                                'vara': proc['vara'] or '',
+                                'client_name': client['name'],
+                                'client_cnpj': client['cnpj'],
+                                'debt_value': f"R$ {float(debt['original_value']):,.2f}" if debt is not None else ''
+                            }
+
+                            for tid in selected_template_ids:
+                                # find template data
+                                tpl = next((t for t in templates if t['id']==tid), None)
+                                if not tpl:
+                                    continue
+                                tpl_content = tpl.get('template_content', '')
+                                rendered = render_template_text(tpl_content, context)
+                                # create record in DB
+                                created_id = create_judicial_petition(pid, tpl['name'], template_id=tpl['id'], content=rendered)
+                                created_ids.append(created_id)
+
+                                # generate PDF bytes
+                                pdf_bytes = pdf_gen.generate_petition_pdf(tpl['name'], rendered, metadata=context)
+                                filename = f"peticao_{proc['process_number']}_{tpl['name'].replace(' ', '_')}_{created_id}.pdf"
+                                files_for_zip.append((filename, pdf_bytes))
+                        conn.close()
+
+                        if files_for_zip:
+                            # build zip
+                            zip_buffer = io.BytesIO()
+                            with zipfile.ZipFile(zip_buffer, 'w') as zf:
+                                for filename, data in files_for_zip:
+                                    zf.writestr(filename, data)
+                            zip_buffer.seek(0)
+                            st.success(f"{len(files_for_zip)} petições geradas com sucesso e salvas no banco ({len(created_ids)} registros)")
+                            st.download_button('Baixar Petições (ZIP)', zip_buffer.getvalue(), file_name='peticoes_geradas.zip')
+                        else:
+                            st.warning('Nenhuma petição foi gerada.')
 
     elif page == "Cadastro de Devedores":
         page_header("Gestão de Devedores")
