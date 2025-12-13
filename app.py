@@ -4,7 +4,7 @@ from datetime import date
 from decimal import Decimal
 import io
 import zipfile
-from src.database import init_db, get_connection, list_judicial_processes, get_petition_templates, create_judicial_petition
+from src.database import init_db, get_connection, list_judicial_processes, get_petition_templates, create_judicial_petition, create_petition_template, update_petition_template, delete_petition_template, get_template_by_id
 from src.petition_templates import render_template as render_template_text
 from src.auth import check_credentials, create_session_token, validate_session_token
 from src.calculator import Calculator
@@ -2472,6 +2472,141 @@ def main_app():
         
         finally:
             conn.close()
+
+    elif page == "Modelos de Petição":
+        page_header("Modelos de Petição", "Gerencie modelos e gere procurações/substabelecimentos rapidamente")
+        conn = get_connection()
+        templates_df = pd.read_sql_query('SELECT id, name, process_type, description FROM petition_templates ORDER BY created_at DESC', conn)
+        conn.close()
+
+        st.subheader('Modelos Cadastrados')
+        if templates_df.empty:
+            st.info('Ainda não há modelos cadastrados.')
+        else:
+            st.dataframe(templates_df, use_container_width=True)
+
+        st.divider()
+        st.subheader('Criar / Editar Modelo')
+        # Prepare for edit or creation
+        tpl_id = None
+        if not templates_df.empty:
+            tpl_choices = [None] + templates_df['id'].tolist()
+        else:
+            tpl_choices = [None]
+        with st.form('template_form'):
+            tpl_id = st.selectbox('Selecionar Modelo para Editar (ou Novo)', options=tpl_choices, format_func=lambda x: 'Novo' if x is None else f"{x} - {templates_df[templates_df['id']==x].iloc[0]['name']}")
+            # Prefill if editing
+            tpl_name_prefill = ''
+            tpl_process_type_prefill = 'inicial'
+            tpl_description_prefill = ''
+            tpl_content_prefill = ''
+            if tpl_id:
+                tpl_info = get_template_by_id(tpl_id)
+                if tpl_info:
+                    tpl_name_prefill = tpl_info['name']
+                    tpl_process_type_prefill = tpl_info['process_type']
+                    tpl_description_prefill = tpl_info['description'] or ''
+                    tpl_content_prefill = tpl_info['template_content'] or ''
+
+            tpl_name = st.text_input('Nome do Modelo', tpl_name_prefill)
+            tpl_process_type = st.selectbox('Tipo de Processo', options=['inicial', 'cumprimento'], index=0 if tpl_process_type_prefill == 'inicial' else 1)
+            tpl_description = st.text_input('Descrição (opcional)', tpl_description_prefill)
+            tpl_content = st.text_area('Conteúdo do Template (use {{placeholders}})', value=tpl_content_prefill, height=300)
+            if st.form_submit_button('Salvar Modelo'):
+                if not tpl_name or not tpl_content:
+                    st.error('Nome e conteúdo são obrigatórios.')
+                else:
+                    if tpl_id:
+                        update_petition_template(tpl_id, name=tpl_name, process_type=tpl_process_type, description=tpl_description, template_content=tpl_content)
+                        st.success('Modelo atualizado com sucesso.')
+                    else:
+                        new_id = create_petition_template(tpl_name, tpl_process_type, tpl_description, tpl_content)
+                        st.success(f'Modelo criado com ID {new_id}')
+                    st.experimental_rerun()
+
+        st.divider()
+        st.subheader('Deletar Modelo')
+        if not templates_df.empty:
+            delete_id = st.selectbox('Modelo a deletar', options=templates_df['id'].tolist(), format_func=lambda x: f"{x} - {templates_df[templates_df['id']==x].iloc[0]['name']}")
+            if st.button('Excluir Modelo'):
+                delete_petition_template(delete_id)
+                st.success('Modelo excluído.')
+                st.experimental_rerun()
+
+        st.divider()
+        st.subheader('Geração Rápida: Procuração / Substabelecimento')
+        tab_proc, tab_sub = st.tabs(['Procuração Rápida', 'Substabelecimento Rápida'])
+
+        with tab_proc:
+            with st.form('proc_form'):
+                client_df = get_clients()
+                client_choice = None
+                if not client_df.empty:
+                    client_choice = st.selectbox('Cliente', options=client_df['id'].tolist(), format_func=lambda x: client_df[client_df['id']==x].iloc[0]['name'])
+                debtor_name = st.text_input('Nome do Outorgante')
+                proc_attorney = st.text_input('Advogado (Outorgado)')
+                proc_oab = st.text_input('OAB do Advogado')
+                proc_cpf = st.text_input('CPF do Outorgante')
+                proc_powers = st.text_area('Poderes', height=150, value='Poderes para praticar todos os atos necessários ao mandato, inclusive substabelecer.')
+                save_as_template = st.checkbox('Salvar como modelo', value=False)
+                new_template_name = st.text_input('Nome do modelo (se salvar)', '') if save_as_template else None
+                if st.form_submit_button('Gerar Procuração'):
+                    ctx = {
+                        'debtor_name': debtor_name,
+                        'attorney_name': proc_attorney,
+                        'attorney_oab': proc_oab,
+                        'attorney_cpf': proc_cpf,
+                        'powers': proc_powers,
+                        'today': date.today().strftime('%d/%m/%Y')
+                    }
+                    # default template
+                    proc_raw_template = "\n\n".join([
+                        "PROCURAÇÃO",
+                        "Eu, {{debtor_name}}, CPF nº {{attorney_cpf}}, por meio desta outorgo ao advogado {{attorney_name}} - OAB {{attorney_oab}} os poderes descritos a seguir:",
+                        "{{powers}}",
+                        "Data: {{today}}",
+                    ])
+                    default_proc_template = render_template_text(proc_raw_template, ctx)
+                    pdfb = PDFGenerator().generate_petition_pdf('Procuração', default_proc_template, metadata={'debtor': debtor_name, 'attorney': proc_attorney})
+                    st.success('Procuração gerada com sucesso')
+                    st.download_button('Baixar Procuração (PDF)', pdfb, file_name='procuraçao.pdf')
+                    if save_as_template and new_template_name:
+                        create_petition_template(new_template_name, 'inicial', 'Procuração rápida salva via UI', proc_raw_template)
+                        st.success('Modelo de procuração salvo')
+
+        with tab_sub:
+            with st.form('subst_form'):
+                debtor_name2 = st.text_input('Nome do Outorgante')
+                origin_attorney = st.text_input('Advogado Substabelecente (original)')
+                origin_oab = st.text_input('OAB do Substabelecente')
+                dest_attorney = st.text_input('Advogado Substabelecido (destinatário)')
+                dest_oab = st.text_input('OAB do Substabelecido')
+                sub_powers = st.text_area('Poderes Substabelecidos', height=120, value='Poderes para prosseguir com atos processuais, com/sem reserva de poderes')
+                save_sub_template = st.checkbox('Salvar como modelo', value=False)
+                sub_template_name = st.text_input('Nome do modelo (se salvar)', '') if save_sub_template else None
+                if st.form_submit_button('Gerar Substabelecimento'):
+                    ctx2 = {
+                        'debtor_name': debtor_name2,
+                        'origin_attorney': origin_attorney,
+                        'origin_oab': origin_oab,
+                        'dest_attorney': dest_attorney,
+                        'dest_oab': dest_oab,
+                        'powers': sub_powers,
+                        'today': date.today().strftime('%d/%m/%Y')
+                    }
+                    sub_raw_template = "\n\n".join([
+                        "SUBSTABELECIMENTO",
+                        "Eu, {{origin_attorney}} - OAB {{origin_oab}}, substabeleço ao(à) advogado(a) {{dest_attorney}} - OAB {{dest_oab}} os poderes a seguir:",
+                        "{{powers}}",
+                        "Data: {{today}}",
+                    ])
+                    sub_template_text = render_template_text(sub_raw_template, ctx2)
+                    pdfb2 = PDFGenerator().generate_petition_pdf('Substabelecimento', sub_template_text, metadata={'origin': origin_attorney, 'dest': dest_attorney})
+                    st.success('Substabelecimento gerado com sucesso')
+                    st.download_button('Baixar Substabelecimento (PDF)', pdfb2, file_name='substabelecimento.pdf')
+                    if save_sub_template and sub_template_name:
+                        create_petition_template(sub_template_name, 'inicial', 'Substabelecimento rápido salvo via UI', sub_raw_template)
+                        st.success('Modelo de substabelecimento salvo')
 
     elif page == "Configurações Avançadas":
         page_header("Configurações Avançadas", "Gerenciamento de sistema e operações críticas")

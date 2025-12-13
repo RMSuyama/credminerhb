@@ -664,3 +664,79 @@ def create_judicial_petition(process_id, petition_type, template_id=None, conten
     conn.commit()
     conn.close()
     return petition_id
+
+
+def get_template_by_id(template_id):
+    """Return a petition template by id."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    if USE_SUPABASE:
+        cursor.execute('SELECT id, name, process_type, description, template_content FROM petition_templates WHERE id = %s', (template_id,))
+    else:
+        cursor.execute('SELECT id, name, process_type, description, template_content FROM petition_templates WHERE id = ?', (template_id,))
+    row = cursor.fetchone()
+    conn.close()
+    if not row:
+        return None
+    return {
+        'id': row[0],
+        'name': row[1],
+        'process_type': row[2],
+        'description': row[3],
+        'template_content': row[4],
+    }
+
+
+def create_petition_template(name, process_type, description, template_content):
+    conn = get_connection()
+    cursor = conn.cursor()
+    if USE_SUPABASE:
+        cursor.execute('INSERT INTO petition_templates (name, process_type, description, template_content) VALUES (%s, %s, %s, %s) RETURNING id', (name, process_type, description, template_content))
+        new_id = cursor.fetchone()[0]
+    else:
+        cursor.execute('INSERT INTO petition_templates (name, process_type, description, template_content) VALUES (?, ?, ?, ?)', (name, process_type, description, template_content))
+        new_id = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    return new_id
+
+
+def update_petition_template(template_id, name=None, process_type=None, description=None, template_content=None):
+    conn = get_connection()
+    cursor = conn.cursor()
+    # Build update parts
+    sets = []
+    params = []
+    if name is not None:
+        sets.append('name = %s' if USE_SUPABASE else 'name = ?')
+        params.append(name)
+    if process_type is not None:
+        sets.append('process_type = %s' if USE_SUPABASE else 'process_type = ?')
+        params.append(process_type)
+    if description is not None:
+        sets.append('description = %s' if USE_SUPABASE else 'description = ?')
+        params.append(description)
+    if template_content is not None:
+        sets.append('template_content = %s' if USE_SUPABASE else 'template_content = ?')
+        params.append(template_content)
+    if not sets:
+        conn.close()
+        return False
+    query = 'UPDATE petition_templates SET ' + ', '.join(sets) + (' WHERE id = %s' if USE_SUPABASE else ' WHERE id = ?')
+    params.append(template_id)
+    cursor.execute(query, tuple(params))
+    conn.commit()
+    conn.close()
+    return True
+
+
+def delete_petition_template(template_id):
+    conn = get_connection()
+    cursor = conn.cursor()
+    if USE_SUPABASE:
+        cursor.execute('DELETE FROM petition_templates WHERE id = %s', (template_id,))
+    else:
+        cursor.execute('DELETE FROM petition_templates WHERE id = ?', (template_id,))
+    conn.commit()
+    conn.close()
+    return True
