@@ -108,6 +108,18 @@ Assinado digitalmente por: ____________________________
 OAB nº: _________
 """
         }
+        ,
+        "procura_csv": {
+            "name": "Procuração Padrão",
+            "description": "Modelo de procuração para outorga de poderes ao advogado",
+            "content": """PROCURAÇÃO
+
+    Eu, {{debtor_name}}, portador(a) do CPF/CNPJ n.º {{debtor_cpf_cnpj}}, por este instrumento, nomeio e constituo como meu bastante procurador(a) o(a) advogado(a) {{attorney_name}} - OAB {{attorney_oab}}, para representar-me em juízo e fora dele, com poderes para receber citação, transigir, firmar acordos, substabelecer, e praticar todos os demais atos necessários ao regular andamento do processo.
+
+    Data: {{today}}
+    Assinatura: __________________________
+    """
+        },
     },
     
     # Petições para Cumprimento de Sentença
@@ -243,6 +255,31 @@ Data: ___/___/______
 Assinado digitalmente por: ____________________________
 OAB nº: _________
 """
+        }
+        ,
+        "procura_csv_exec": {
+            "name": "Procuração - Execução",
+            "description": "Procuração voltada à fase de cumprimento de sentença",
+            "content": """PROCURAÇÃO PARA CUMPRIMENTO DE SENTENÇA
+
+    Eu, {{debtor_name}}, CPF/CNPJ: {{debtor_cpf_cnpj}}, por este instrumento aventureiro, outorgo ao advogado {{attorney_name}} - OAB {{attorney_oab}}, poderes especiais para representar-me na fase de cumprimento de sentença, inclusive para requerer medidas executivas, receber alvarás, firmar termos, substabelecer, negociar e praticar todos os atos necessários.
+
+    Data: {{today}}
+    Assinatura: __________________________
+    """
+        },
+        "substabelecimento_exec": {
+            "name": "Substabelecimento",
+            "description": "Substabelecimento padrão para substabelecer poderes a outro advogado",
+            "content": """SUBSTABELECIMENTO
+
+    Eu, {{origin_attorney}} - OAB {{origin_oab}}, substabeleço ao(à) advogado(a) {{dest_attorney}} - OAB {{dest_oab}} os poderes a seguir descritos:
+
+    {{powers}}
+
+    Data: {{today}}
+    Assinatura: __________________________
+    """
         }
     }
 }
