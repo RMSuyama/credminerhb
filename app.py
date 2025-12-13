@@ -1991,18 +1991,16 @@ def main_app():
                     col_n3, col_n4 = st.columns(2)
                     original_value = col_n3.number_input("Valor Original (R$)", min_value=0.01, step=0.01)
                     start_due_date = col_n4.date_input("Data de Vencimento (1ª Parcela)")
+
+                    # Always allow user to specify number of installments (1 = single debt)
+                    num_installments = st.number_input("Número de Parcelas", min_value=1, value=1, max_value=120, step=1, help="Quantas parcelas você quer inserir? (1 = dívida única)")
                     
                     
                     st.markdown("---")
-                    is_batch = st.checkbox("Gerar em Lote (Parcelas)?")
                     
                     submit = st.form_submit_button("Adicionar Dívida(s)")
             
-            # Pergunta número de parcelas fora do form (permite renderização dinâmica)
-            if is_batch:
-                num_installments = st.number_input("Número de Parcelas a Gerar", min_value=2, value=12, max_value=120, step=1, help="Quantas parcelas mensais você deseja criar?")
-            else:
-                num_installments = 1
+            # num_installments is captured inside the form
             
             # Processar o envio do formulário
             if submit:
@@ -2020,7 +2018,8 @@ def main_app():
                         for i in range(num_installments):
                             current_due_date = start_due_date + relativedelta(months=i)
                             
-                            if is_batch:
+                            # If more than one installment, add index to description
+                            if num_installments > 1:
                                 current_desc = f"{description} ({i+1}/{num_installments})"
                             else:
                                 current_desc = description
