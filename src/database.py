@@ -666,6 +666,58 @@ def create_judicial_petition(process_id, petition_type, template_id=None, conten
     return petition_id
 
 
+def create_judicial_process(debtor_id, client_id, debt_id=None, process_type='inicial', process_number=None, forum_id=None, vara=None, distribution_date=None, status='ativo', description=None, notes=None):
+    """Create a judicial process record and return its id."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    if USE_SUPABASE:
+        cursor.execute('INSERT INTO judicial_processes (debtor_id, client_id, debt_id, process_type, process_number, forum_id, vara, distribution_date, status, description, notes) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id',
+                       (debtor_id, client_id, debt_id, process_type, process_number, forum_id, vara, distribution_date, status, description, notes))
+        new_id = cursor.fetchone()[0]
+    else:
+        cursor.execute('INSERT INTO judicial_processes (debtor_id, client_id, debt_id, process_type, process_number, forum_id, vara, distribution_date, status, description, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                       (debtor_id, client_id, debt_id, process_type, process_number, forum_id, vara, distribution_date, status, description, notes))
+        new_id = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    return new_id
+
+
+def list_judicial_petitions(process_id):
+    """List petitions linked to a judicial process."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    if USE_SUPABASE:
+        cursor.execute('SELECT id, petition_type, template_id, petition_date, status, content FROM judicial_petitions WHERE process_id = %s ORDER BY petition_date DESC', (process_id,))
+    else:
+        cursor.execute('SELECT id, petition_type, template_id, petition_date, status, content FROM judicial_petitions WHERE process_id = ? ORDER BY petition_date DESC', (process_id,))
+    rows = cursor.fetchall()
+    conn.close()
+    petitions = []
+    for r in rows:
+        petitions.append({
+            'id': r[0],
+            'petition_type': r[1],
+            'template_id': r[2],
+            'petition_date': r[3],
+            'status': r[4],
+            'content': r[5]
+        })
+    return petitions
+
+
+def update_judicial_petition_status(petition_id, status):
+    conn = get_connection()
+    cursor = conn.cursor()
+    if USE_SUPABASE:
+        cursor.execute('UPDATE judicial_petitions SET status = %s WHERE id = %s', (status, petition_id))
+    else:
+        cursor.execute('UPDATE judicial_petitions SET status = ? WHERE id = ?', (status, petition_id))
+    conn.commit()
+    conn.close()
+    return True
+
+
 def get_template_by_id(template_id):
     """Return a petition template by id."""
     conn = get_connection()
