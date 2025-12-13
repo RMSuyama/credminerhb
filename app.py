@@ -1153,6 +1153,47 @@ def main_app():
                 dist_from = None
                 dist_to = None
 
+            # --- NEW: Create Judicial Process ---
+            with st.expander("Novo Processo Judicial"):
+                with st.form("new_judicial_process"):
+                    st.subheader("Criar Novo Processo")
+                    clients_df = get_clients()
+                    if clients_df.empty:
+                        st.warning("Cadastre um cliente primeiro em 'Gerenciar Clientes' antes de criar um processo.")
+                    else:
+                        client_choice = st.selectbox("Cliente", options=clients_df['id'].tolist(), format_func=lambda x: clients_df[clients_df['id']==x].iloc[0]['name'])
+                        debtors_df = get_debtors()
+                        debtor_opts = debtors_df['id'].tolist() if not debtors_df.empty else []
+                        debtor_choice = st.selectbox("Devedor", options=debtor_opts, format_func=lambda x: f"{debtors_df[debtors_df['id']==x].iloc[0]['name']} ({debtors_df[debtors_df['id']==x].iloc[0]['cpf_cnpj']})") if debtor_opts else None
+                        # Debts optional
+                        debt_opts = []
+                        if debtor_choice:
+                            conn = get_connection()
+                            debt_df = pd.read_sql_query('SELECT id, description, original_value, due_date FROM debts WHERE debtor_id = ?', conn, params=(debtor_choice,))
+                            conn.close()
+                            if not debt_df.empty:
+                                debt_opts = debt_df['id'].tolist()
+                        debt_choice = st.selectbox("Vínculo à Dívida (opcional)", options=[None] + debt_opts, format_func=lambda x: ("Nenhum" if x is None else f"{debt_df[debt_df['id']==x].iloc[0]['description']} - R$ {debt_df[debt_df['id']==x].iloc[0]['original_value']:.2f}"))
+                        process_type = st.selectbox("Tipo de Processo", options=["inicial", "cumprimento"], index=0)
+                        process_number = st.text_input("Número do Processo (opcional)")
+                        # Forums for the client
+                        conn = get_connection()
+                        forums = pd.read_sql_query('SELECT id, forum_name FROM client_forums WHERE client_id = ?', conn, params=(client_choice,)) if client_choice else pd.DataFrame()
+                        conn.close()
+                        forum_choice = st.selectbox("Foro (opcional)", options=[None] + forums['id'].tolist(), format_func=lambda x: ("Nenhum" if x is None else forums[forums['id']==x].iloc[0]['forum_name']))
+                        vara = st.text_input("Vara (opcional)")
+                        distribution_date = st.date_input("Data de Distribuição", value=date.today())
+                        status_in = st.selectbox("Status", options=["ativo", "suspenso", "arquivado", "extinto"], index=0)
+                        description = st.text_input("Descrição (opcional)")
+                        notes = st.text_area("Observações (opcional)")
+                        if st.form_submit_button("Criar Processo"):
+                            try:
+                                new_proc_id = create_judicial_process(debtor_choice, client_choice, debt_choice, process_type, process_number or None, forum_choice, vara, distribution_date.strftime('%Y-%m-%d'), status_in, description, notes)
+                                st.success(f"Processo criado com ID {new_proc_id}")
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Erro ao criar processo: {e}")
+
             # Button to refresh list
             if st.button("Aplicar Filtros"):
                 st.session_state['apply_process_filters'] = True
@@ -1273,6 +1314,102 @@ def main_app():
                             st.download_button('Baixar Petições (ZIP)', zip_buffer.getvalue(), file_name='peticoes_geradas.zip')
                         else:
                             st.warning('Nenhuma petição foi gerada.')
+
+                # --- Per-process view and petitions management ---
+                st.divider()
+                st.subheader('Abrir Processo para Gerenciar')
+                # Allow single process selection to view/manage
+                selected_single_proc = st.selectbox('Selecione um Processo', options=process_ids, format_func=lambda x: f"{x} - {processes_df[processes_df['id']==x].iloc[0]['process_number']} - {processes_df[processes_df['id']==x].iloc[0]['debtor_name']}") if process_ids else None
+                if selected_single_proc:
+                    # Show process details
+                    conn = get_connection()
+                    cur = conn.cursor()
+                    proc_row = pd.read_sql_query('SELECT * FROM judicial_processes WHERE id = ?', conn, params=(selected_single_proc,)).iloc[0]
+                    debtor_row = pd.read_sql_query('SELECT id, name, cpf_cnpj FROM debtors WHERE id = ?', conn, params=(proc_row['debtor_id'],)).iloc[0]
+                    client_row = pd.read_sql_query('SELECT id, name, cnpj FROM clients WHERE id = ?', conn, params=(proc_row['client_id'],)).iloc[0]
+                    forum_name = ''
+                    if proc_row['forum_id']:
+                        f_row = pd.read_sql_query('SELECT forum_name FROM client_forums WHERE id = ?', conn, params=(proc_row['forum_id'],))
+                        if not f_row.empty:
+                            forum_name = f_row.iloc[0]['forum_name']
+                    conn.close()
+                    st.markdown('**Dados do Processo**')
+                    st.write(f"ID: {proc_row['id']}")
+                    st.write(f"Número: {proc_row['process_number']}")
+                    st.write(f"Devedor: {debtor_row['name']} ({debtor_row['cpf_cnpj']})")
+                    st.write(f"Cliente: {client_row['name']}")
+                    st.write(f"Tipo: {proc_row['process_type']}")
+                    st.write(f"Foro: {forum_name}")
+                    st.write(f"Vara: {proc_row['vara']}")
+                    st.write(f"Distribuição: {proc_row['distribution_date']}")
+                    st.write(f"Status: {proc_row['status']}")
+                    st.write(f"Descrição: {proc_row['description']}")
+                    st.write(f"Observações: {proc_row['notes']}")
+
+                    # Petitions for this process
+                    petitions = list_judicial_petitions(selected_single_proc)
+                    st.markdown('### Petições deste Processo')
+                    if not petitions:
+                        st.info('Nenhuma petição gerada para este processo.')
+                    else:
+                        for pet in petitions:
+                            st.write(f"ID: {pet['id']} - Tipo: {pet['petition_type']} - Status: {pet['status']} - Data: {pet['petition_date']}")
+                            colp1, colp2, colp3 = st.columns([1,1,1])
+                            with colp1:
+                                if st.button(f"Baixar PDF - Petição #{pet['id']}", key=f"download_pet_{pet['id']}"):
+                                    try:
+                                        pdf_bytes = PDFGenerator().generate_petition_pdf(pet['petition_type'], pet['content'], metadata={'process_number': proc_row['process_number'], 'debtor': debtor_row['name']})
+                                        st.download_button(label=f"⬇️ Baixar Petição #{pet['id']}", data=pdf_bytes, file_name=f"peticao_{proc_row['process_number']}_{pet['petition_type']}_{pet['id']}.pdf", mime='application/pdf')
+                                    except Exception as e:
+                                        st.error(f"Erro ao gerar PDF: {e}")
+                            with colp2:
+                                if st.button(f"Marcar como Protocolado - #{pet['id']}", key=f"proto_pet_{pet['id']}"):
+                                    try:
+                                        update_judicial_petition_status(pet['id'], 'protocolado')
+                                        st.success('Petição marcada como protocolada.')
+                                        st.rerun()
+                                    except Exception as e:
+                                        st.error(f"Erro ao atualizar status: {e}")
+                            with colp3:
+                                if st.button(f"Marcar como Assinado - #{pet['id']}", key=f"assin_pet_{pet['id']}"):
+                                    try:
+                                        update_judicial_petition_status(pet['id'], 'assinado')
+                                        st.success('Petição marcada como assinada.')
+                                        st.rerun()
+                                    except Exception as e:
+                                        st.error(f"Erro ao atualizar status: {e}")
+
+                    st.divider()
+                    # Create new petition for this process
+                    st.subheader('Gerar Nova Petição para este Processo')
+                    templates_for_type = get_petition_templates(proc_row['process_type'])
+                    if templates_for_type:
+                        tpl_map = {t['id']: t['name'] for t in templates_for_type}
+                        tpl_choice = st.selectbox('Modelo de Petição', options=list(tpl_map.keys()), format_func=lambda x: tpl_map[x])
+                        if st.button('Gerar e Salvar Petição'):
+                            try:
+                                tpl_obj = get_template_by_id(tpl_choice)
+                                tpl_content = tpl_obj['template_content'] if tpl_obj else ''
+                                context = {
+                                    'debtor_name': debtor_row['name'],
+                                    'debtor_cpf_cnpj': debtor_row['cpf_cnpj'],
+                                    'process_number': proc_row['process_number'],
+                                    'forum': forum_name,
+                                    'vara': proc_row['vara'],
+                                    'client_name': client_row['name'],
+                                    'client_cnpj': client_row['cnpj']
+                                }
+                                rendered = render_template_text(tpl_content, context)
+                                new_pet_id = create_judicial_petition(selected_single_proc, tpl_obj['name'], template_id=tpl_obj['id'], content=rendered, status='gerada')
+                                # Generate PDF and allow download
+                                pdf_bytes = PDFGenerator().generate_petition_pdf(tpl_obj['name'], rendered, metadata=context)
+                                st.download_button(label='⬇️ Baixar Petição Gerada (PDF)', data=pdf_bytes, file_name=f"peticao_{proc_row['process_number']}_{tpl_obj['name']}_{new_pet_id}.pdf", mime='application/pdf')
+                                st.success('Petição gerada e salva com sucesso.')
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Erro ao gerar petição: {e}")
+                    else:
+                        st.info('Nenhum modelo disponível para o tipo de processo.')
 
     elif page == "Cadastro de Devedores":
         page_header("Gestão de Devedores")
