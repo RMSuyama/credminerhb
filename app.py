@@ -1904,9 +1904,7 @@ def main_app():
                     else:
                         st.warning("Nenhuma dívida para gerar relatório.")
             
-            with col_pdf2:
-                if st.button("📊 Gerar Extrato de Pagamentos (PDF)"):
-                    st.info("Funcionalidade em desenvolvimento para relatórios de pagamentos.")
+            # Payment extract implemented in the column above
             
             st.divider()
             
