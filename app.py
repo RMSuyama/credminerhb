@@ -5,7 +5,7 @@ from dateutil.relativedelta import relativedelta
 from decimal import Decimal
 import io
 import zipfile
-from src.database import init_db, get_connection, list_judicial_processes, get_petition_templates, create_judicial_petition, create_petition_template, update_petition_template, delete_petition_template, get_template_by_id
+from src.database import init_db, get_connection, list_judicial_processes, get_petition_templates, create_judicial_petition, create_petition_template, update_petition_template, delete_petition_template, get_template_by_id, create_judicial_process, list_judicial_petitions, update_judicial_petition_status
 from src.petition_templates import render_template as render_template_text
 from src.auth import check_credentials, create_session_token, validate_session_token
 from src.calculator import Calculator
