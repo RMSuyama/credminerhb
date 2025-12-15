@@ -997,3 +997,39 @@ def get_dashboard_kpis():
         }
     finally:
         conn.close()
+
+def get_clients():
+    """Retrieve all clients as a DataFrame."""
+    conn = get_connection()
+    try:
+        return pd.read_sql_query("SELECT * FROM clients ORDER BY name", conn)
+    finally:
+        conn.close()
+
+def get_debtors():
+    """Retrieve all debtors as a DataFrame."""
+    conn = get_connection()
+    try:
+        return pd.read_sql_query("SELECT * FROM debtors ORDER BY name", conn)
+    finally:
+        conn.close()
+
+def get_debts(debtor_id=None):
+    """Retrieve debts as a DataFrame, optionally filtered by debtor_id."""
+    conn = get_connection()
+    try:
+        if debtor_id:
+            # Check connection type for parameter style
+            import sqlite3
+            use_postgres = USE_SUPABASE and not isinstance(conn, sqlite3.Connection)
+            if use_postgres:
+                 return pd.read_sql_query("SELECT * FROM debts WHERE debtor_id = %s", conn, params=(debtor_id,))
+            else:
+                 return pd.read_sql_query("SELECT * FROM debts WHERE debtor_id = ?", conn, params=(debtor_id,))
+        else:
+            return pd.read_sql_query("SELECT * FROM debts", conn)
+    except Exception as e:
+        print(f"Error fetching debts: {e}")
+        return pd.DataFrame()
+    finally:
+         conn.close()
