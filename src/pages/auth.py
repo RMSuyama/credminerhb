@@ -1,7 +1,7 @@
 
 import streamlit as st
 import bcrypt
-from src.database import get_connection, create_session_token as db_create_token 
+from src.database import get_connection 
 # Note: create_session_token might need to be imported from auth util if not in db. 
 # Checking imports: app.py imported it from src.auth. Let's use that.
 from src.auth import check_credentials, create_session_token, validate_session_token
