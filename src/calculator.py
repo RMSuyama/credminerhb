@@ -130,7 +130,12 @@ class Calculator:
             if calc_date.day < due_date.day:
                 months_diff -= 1
             
-            rate = rule.get_interest_rate()
+            # Ensure rate is Decimal to avoid Decimal * float errors
+            raw_rate = rule.get_interest_rate()
+            try:
+                rate = Decimal(str(raw_rate))
+            except Exception:
+                rate = Decimal(raw_rate)
             
             if rule.is_pro_rata():
                 # Pro-rata logic
@@ -150,7 +155,12 @@ class Calculator:
                 interest_val = corrected_value * (Decimal(months_diff) * rate)
 
         # 3. Fine
-        fine_pct = rule.get_fine_percentage(fine_type)
+        # Ensure fine percentage is Decimal
+        raw_fine_pct = rule.get_fine_percentage(fine_type)
+        try:
+            fine_pct = Decimal(str(raw_fine_pct))
+        except Exception:
+            fine_pct = Decimal(raw_fine_pct)
         fine_val = corrected_value * fine_pct
 
         total = corrected_value + interest_val + fine_val

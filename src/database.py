@@ -2,6 +2,7 @@ import sqlite3
 import os
 import bcrypt
 from src.config import USE_SUPABASE, SUPABASE_HOST, SUPABASE_PORT, SUPABASE_DB, SUPABASE_USER, SUPABASE_PASSWORD, SQLITE_DB_PATH
+import pandas as pd
 
 # PostgreSQL support (conditional)
 if USE_SUPABASE:
@@ -953,3 +954,46 @@ def delete_kanban_card(card_id):
     conn.commit()
     conn.close()
     return True
+
+
+def get_dashboard_kpis():
+    """Retrieve all KPI metrics for the dashboard in a single call."""
+    conn = get_connection()
+    try:
+        # Total Debtors
+        total_debtors = pd.read_sql_query("SELECT count(*) as cnt FROM debtors", conn).iloc[0, 0]
+        
+        # Total Original Value & Total Debts
+        debts_stats = pd.read_sql_query("SELECT COALESCE(sum(original_value), 0) as total_val, count(*) as cnt FROM debts", conn)
+        total_original_value = debts_stats.iloc[0]['total_val']
+        total_debts = debts_stats.iloc[0]['cnt']
+        
+        # Active Agreements
+        agreements_df = pd.read_sql_query("SELECT * FROM agreements", conn)
+        active_agreements = len(agreements_df[agreements_df['status'] == 'active']) if not agreements_df.empty else 0
+        
+        # Payments & Recovery
+        payments_df = pd.read_sql_query("SELECT * FROM payments", conn)
+        total_recovered = payments_df['amount'].sum() if not payments_df.empty else 0
+        total_payments = len(payments_df)
+        
+        # Recovery Rate
+        recovery_rate = (total_recovered / total_original_value * 100) if total_original_value > 0 else 0
+        
+        return {
+            "total_debtors": total_debtors,
+            "total_debts": total_debts,
+            "total_original_value": total_original_value,
+            "active_agreements": active_agreements,
+            "total_recovered": total_recovered,
+            "total_payments": total_payments,
+            "recovery_rate": recovery_rate
+        }
+    except Exception as e:
+        print(f"Error fetching KPIs: {e}")
+        return {
+            "total_debtors": 0, "total_debts": 0, "total_original_value": 0,
+            "active_agreements": 0, "total_recovered": 0, "total_payments": 0, "recovery_rate": 0
+        }
+    finally:
+        conn.close()
