@@ -238,49 +238,59 @@ def load_custom_css():
         }
 
 
-        /* --- STREAMLIT SORTABLES (TRELLO STYLE) --- */
-        /* The container for all columns */
-        div[data-testid="stHorizontalBlock"] {
-            gap: 1rem;
-            overflow-x: auto;
-            padding-bottom: 1rem;
-        }
 
-        /* The sortable container (column) */
-        .sortable-container {
-            background-color: var(--bg-elevated) !important;
-            border-radius: 12px !important;
-            padding: 10px !important;
-            min-width: 300px; /* Enforce min width for Trello feel */
+        /* --- STREAMLIT SORTABLES (TRELLO STYLE) --- */
+        
+        /* Force Horizontal Layout for the Sortable Columns */
+        /* Takes the container that holds the sortables and makes it flex row */
+        div[data-testid="stHorizontalBlock"] {
+            display: flex !important;
+            flex-direction: row !important;
+            align-items: flex-start !important;
+            gap: 16px !important;
+            overflow-x: auto !important;
+            padding-bottom: 16px !important;
+            min-height: 400px; /* Ensure height for dragging */
         }
         
-        /* The individual draggable item (Card) */
-        div[draggable="true"] {
-            background-color: var(--bg-input) !important;
-            color: var(--text-main) !important; /* Ensure text is visible */
-            border-radius: 4px !important; /* Sharper card corners */
-            border: 1px solid var(--border-subtle) !important;
-            box-shadow: none !important; /* Flat card */
-            margin-bottom: 8px !important;
+        /* The Column Container */
+        .sortable-container {
+            background-color: var(--bg-elevated) !important;
+            border-radius: 8px !important;
             padding: 12px !important;
-            font-size: 0.95rem !important;
+            min-width: 280px !important;
+            max-width: 320px !important;
+            flex-shrink: 0 !important; /* Prevent squishing */
         }
 
-        /* Fix for white text on white bg issue specifically targeting sortables internal classes if needed */
-        .st-emotion-cache-1wivap2 { 
-             /* This is a generated class, might be flaky. Better to target generically */
+        /* CARD STYLE - OVERRIDING DEFAULT BLUE */
+        /* Target likely library classes + generic draggable */
+        div[draggable="true"] {
+            background-color: #2C2C2C !important; /* Force Dark Grey */
+            color: #ECEFF1 !important; /* Force Light Text */
+            border: 1px solid #444 !important;
+            border-radius: 6px !important;
+            margin-bottom: 10px !important;
+            padding: 12px !important;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.3) !important;
+            font-size: 0.9rem !important;
+            font-weight: 500 !important;
         }
 
-        /* Force text color on all div's inside draggables */
+        /* Ensure ALL text inside the card is light */
         div[draggable="true"] * {
-            color: var(--text-main) !important;
+            color: #ECEFF1 !important;
         }
 
-        /* Hover effect for cards */
+        /* Hover Effect */
         div[draggable="true"]:hover {
             border-color: var(--primary-orange) !important;
-            background-color: #333 !important;
+            background-color: #383838 !important; /* Slightly lighter on hover */
+            cursor: grab;
         }
-
+        
+        /* Header styling inside the sortable (if rendered by library) */
+        /* Usually the library renders the header text above the items div */
+        
     </style>
     """, unsafe_allow_html=True)

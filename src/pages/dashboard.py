@@ -113,8 +113,9 @@ def render_dashboard():
         cards = get_kanban_cards(col) # Status = Column Name
         items_list = []
         for c in cards:
-            # item formatted: "Title ::ID"
-            items_list.append(f"{c['title']} ::{c['id']}")
+            # item formatted: "#{id} {title}" for cleaner look
+            # We use a separator that is unlikely to be in title or regex
+            items_list.append(f"#{c['id']} {c['title']}")
         
         kanban_items.append({'header': col, 'items': items_list})
 
@@ -129,13 +130,16 @@ def render_dashboard():
         current_items = col_data['items']
         
         for item_str in current_items:
-            if "::" in item_str:
-                parts = item_str.split("::")
-                card_id_str = parts[-1]
+            # Parse ID from "#{id} {title}"
+            # We look for the first space
+            if item_str.startswith("#"):
                 try:
+                    # Split only on first space
+                    parts = item_str.split(" ", 1)
+                    card_id_str = parts[0].replace("#", "")
                     card_id = int(card_id_str)
-                    # Blind update status ensures consistency
-                    # The database function should handle if it is already that status efficiently enough
+                    
+                    # Update status
                     update_kanban_card_status(card_id, target_status)
-                except ValueError:
+                except (ValueError, IndexError):
                     pass
