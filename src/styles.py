@@ -237,5 +237,50 @@ def load_custom_css():
             background: var(--primary-orange);
         }
 
+
+        /* --- STREAMLIT SORTABLES (TRELLO STYLE) --- */
+        /* The container for all columns */
+        div[data-testid="stHorizontalBlock"] {
+            gap: 1rem;
+            overflow-x: auto;
+            padding-bottom: 1rem;
+        }
+
+        /* The sortable container (column) */
+        .sortable-container {
+            background-color: var(--bg-elevated) !important;
+            border-radius: 12px !important;
+            padding: 10px !important;
+            min-width: 300px; /* Enforce min width for Trello feel */
+        }
+        
+        /* The individual draggable item (Card) */
+        div[draggable="true"] {
+            background-color: var(--bg-input) !important;
+            color: var(--text-main) !important; /* Ensure text is visible */
+            border-radius: 8px !important;
+            border: 1px solid var(--border-subtle) !important;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.2) !important;
+            margin-bottom: 8px !important;
+            padding: 12px !important;
+            font-size: 0.95rem !important;
+        }
+
+        /* Fix for white text on white bg issue specifically targeting sortables internal classes if needed */
+        .st-emotion-cache-1wivap2 { 
+             /* This is a generated class, might be flaky. Better to target generically */
+        }
+
+        /* Force text color on all div's inside draggables */
+        div[draggable="true"] * {
+            color: var(--text-main) !important;
+        }
+
+        /* Hover effect for cards */
+        div[draggable="true"]:hover {
+            border-color: var(--primary-orange) !important;
+            background-color: #333 !important;
+        }
+
     </style>
     """, unsafe_allow_html=True)
