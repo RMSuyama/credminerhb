@@ -49,8 +49,8 @@ else:
     with st.sidebar:
         st.markdown("""
         <div style="text-align: center; margin-bottom: 2rem;">
-             <h2 style="color: #ff5e00; margin:0;">CredMiner</h2>
-             <span style="color: #666; font-size: 0.8rem;">Professional Edition</span>
+             <h2 style="color: #E67E22; margin:0; font-weight: 800; letter-spacing: -1px;">CredMiner</h2>
+             <span style="color: #B0BEC5; font-size: 0.8rem; letter-spacing: 1px;">PROFESSIONAL</span>
         </div>
         """, unsafe_allow_html=True)
         

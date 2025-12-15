@@ -10,13 +10,13 @@ def render_login():
     # Logo Area
     st.markdown("""
     <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; margin-bottom: 2rem;">
-        <div style="background: linear-gradient(135deg, #ff5e00 0%, #ff8c00 100%); padding: 20px; border-radius: 16px; box-shadow: 0 0 20px rgba(255,94,0,0.3);">
-            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style="width: 48px; height: 48px; fill: black;">
+        <div style="background: linear-gradient(135deg, #E67E22 0%, #D35400 100%); padding: 24px; border-radius: 20px; box-shadow: 0 10px 25px rgba(230, 126, 34, 0.3);">
+            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style="width: 56px; height: 56px; fill: #121212;">
                 <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
             </svg>
         </div>
-        <h1 style="margin-top: 1rem; color: #ff5e00; font-size: 2.5rem;">CredMiner <span style="color: white;">HB</span></h1>
-        <p style="color: #666;">Sistema de Recuperação de Crédito</p>
+        <h1 style="margin-top: 1.5rem; color: #ECEFF1; font-size: 2.8rem; font-weight: 800; letter-spacing: -1px;">CredMiner <span style="color: #E67E22;">HB</span></h1>
+        <p style="color: #B0BEC5; font-size: 1.1rem; letter-spacing: 0.5px;">Sistema de Recuperação de Crédito</p>
     </div>
     """, unsafe_allow_html=True)
     

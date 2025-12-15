@@ -3,184 +3,238 @@ import streamlit as st
 
 def load_custom_css():
     st.markdown("""
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        /* === BLACK & ORANGE THEME === */
+        /* === PREMIUM DARK & ORANGE THEME === */
         :root {
-            --bg-dark: #0e0e0e; /* Muito escuro, quase preto */
-            --bg-card: #141414; /* Cinza muito escuro para cards */
-            --bg-hover: #1f1f1f;
-            --primary-orange: #ff5e00; /* Laranja vibrante */
-            --accent-orange: #ff8c00; /* Laranja um pouco mais claro */
-            --text-main: #e0e0e0;
-            --text-muted: #a0a0a0;
-            --border-color: #333333;
-            --sidebar-bg: #050505;
+            /* Palette: Deep Slate, Charcoal, Burnt Orange, Off-White */
+            --bg-dark: #121212;         /* Deep background (not pitch black) */
+            --bg-elevated: #1E1E1E;     /* Slightly lighter for cards/sidebar */
+            --bg-input: #2C2C2C;        /* Input backgrounds */
+            
+            --primary-orange: #E67E22;  /* Burnt Orange (More elegant than neon) */
+            --accent-orange: #D35400;   /* Darker orange for gradients/hover */
+            --highlight-orange: #F39C12; /* Lighter gold-orange for emphasis */
+            
+            --text-main: #ECEFF1;       /* Cool off-white */
+            --text-muted: #B0BEC5;      /* Blue-grey for secondary text */
+            
+            --border-subtle: #333333;
+            --border-focus: #E67E22;
+            
+            --shadow-card: 0 4px 6px rgba(0, 0, 0, 0.3);
+            --shadow-hover: 0 8px 12px rgba(0, 0, 0, 0.4);
+            
+            --sidebar-width: 280px;
         }
 
-        /* Global Reset & Background */
+        /* --- GLOBAL & TYPOGRAPHY --- */
         .stApp {
             background-color: var(--bg-dark);
             color: var(--text-main);
             font-family: 'Inter', sans-serif;
         }
         
-        /* Headers */
-        h1, h2, h3, h4, h5, h6 {
-            color: var(--primary-orange) !important;
+        h1, h2, h3 {
+            color: var(--text-main) !important;
             font-weight: 700 !important;
+            letter-spacing: -0.5px;
         }
         
-        /* Sidebar */
-        section[data-testid="stSidebar"] {
-            background-color: var(--sidebar-bg);
-            border-right: 1px solid var(--border-color);
+        h1 span, h2 span, h3 span {
+            color: var(--primary-orange);
         }
         
-        section[data-testid="stSidebar"] .stMarkdown {
+        p, li, label {
             color: var(--text-muted);
+            font-weight: 400;
         }
 
-        /* Buttons */
-        div.stButton > button {
-            background-color: transparent !important;
+        /* --- SIDEBAR --- */
+        section[data-testid="stSidebar"] {
+            background-color: var(--bg-elevated);
+            border-right: 1px solid var(--border-subtle);
+        }
+        
+        /* Sidebar Navigation "Buttons" -> Menu Items */
+        section[data-testid="stSidebar"] div.stButton button {
+            background: transparent !important;
+            border: none !important;
+            border-radius: 6px !important;
+            color: var(--text-muted) !important;
+            text-align: left !important;
+            width: 100%;
+            padding: 0.6rem 1rem !important;
+            margin-bottom: 4px;
+            font-weight: 500 !important;
+            transition: all 0.2s ease;
+            box-shadow: none !important;
+        }
+        
+        section[data-testid="stSidebar"] div.stButton button:hover {
+            background: rgba(230, 126, 34, 0.1) !important;
             color: var(--primary-orange) !important;
-            border: 1px solid var(--primary-orange) !important;
-            border-radius: 8px !important;
-            padding: 0.5rem 1rem !important;
-            transition: all 0.3s ease !important;
-            font-weight: 600 !important;
+            padding-left: 1.2rem !important; /* Slide effect */
+        }
+        
+        section[data-testid="stSidebar"] div.stButton button:focus {
+             background: rgba(230, 126, 34, 0.15) !important;
+             color: var(--highlight-orange) !important;
+             border-left: 3px solid var(--primary-orange) !important;
+        }
+        
+        /* Divider in Sidebar */
+        section[data-testid="stSidebar"] hr {
+            margin: 1.5rem 0;
+            border-color: var(--border-subtle) !important;
         }
 
-        div.stButton > button:hover {
+        /* --- MAIN BUTTONS --- */
+        /* Primary/Action Buttons in main area */
+        div.stButton > button {
             background-color: var(--primary-orange) !important;
-            color: black !important;
-            box-shadow: 0 0 15px rgba(255, 94, 0, 0.4);
-            transform: translateY(-2px);
+            color: white !important;
+            border: none !important;
+            border-radius: 8px !important;
+            padding: 0.6rem 1.2rem !important;
+            font-weight: 600 !important;
+            letter-spacing: 0.5px;
+            box-shadow: 0 4px 6px rgba(230, 126, 34, 0.2);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        div.stButton > button:hover {
+            background-color: var(--accent-orange) !important;
+            box-shadow: 0 6px 12px rgba(230, 126, 34, 0.3);
+            transform: translateY(-1px);
         }
 
         div.stButton > button:active {
-            transform: translateY(0);
+            transform: translateY(1px);
+            box-shadow: none;
+        }
+        
+        /* Secondary buttons (use a class or specific selector if possible, standard streamlit buttons rely on type) */
+        button[kind="secondary"] {
+            background-color: transparent !important;
+            border: 1px solid var(--border-subtle) !important;
+            color: var(--text-muted) !important;
+            box-shadow: none !important;
+        }
+        
+        button[kind="secondary"]:hover {
+             border-color: var(--primary-orange) !important;
+             color: var(--primary-orange) !important;
         }
 
-        /* Input Fields */
-        input, select, textarea {
-            background-color: var(--bg-card) !important;
+        /* --- INPUTS & FORMS --- */
+        div[data-baseweb="input"] {
+            background-color: var(--bg-input) !important;
+            border: 1px solid var(--border-subtle) !important;
+            border-radius: 8px !important;
+        }
+        
+        div[data-baseweb="select"] > div {
+             background-color: var(--bg-input) !important;
+             border-color: var(--border-subtle) !important;
+        }
+        
+        div[data-baseweb="base-input"] input {
             color: var(--text-main) !important;
-            border: 1px solid var(--border-color) !important;
-            border-radius: 6px !important;
+        }
+        
+        /* Focus states manually overridden via border color on container if possible, 
+           or globally addressing the focus-within pseudo class */
+        div[data-baseweb="input"]:focus-within {
+             border-color: var(--primary-orange) !important;
+             box-shadow: 0 0 0 1px var(--primary-orange);
         }
 
-        input:focus, select:focus, textarea:focus {
-            border-color: var(--primary-orange) !important;
-            box-shadow: 0 0 0 1px var(--primary-orange) !important;
+        label[data-testid="stLabel"] {
+            color: var(--text-muted) !important;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.4rem;
+        }
+
+        /* --- CARDS / CONTAINERS --- */
+        div[data-testid="stMetric"], div.stDataFrame, .stExpander {
+            background-color: var(--bg-elevated) !important;
+            border: 1px solid var(--border-subtle) !important;
+            border-radius: 10px;
+            box-shadow: var(--shadow-card);
         }
         
-        /* Dataframes & Tables */
-        div[data-testid="stDataFrame"] {
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
-            background-color: var(--bg-card);
+        /* Metric Specifics */
+        div[data-testid="stMetric"] {
+            padding: 1rem;
         }
-        
-        div[data-testid="stDataFrame"] th {
-            background-color: #1a1a1a !important;
+        div[data-testid="stMetricValue"] {
             color: var(--primary-orange) !important;
         }
         
-        div[data-testid="stDataFrame"] td {
-            background-color: var(--bg-card) !important;
-            color: var(--text-main) !important;
-            border-bottom: 1px solid #222 !important;
-        }
-
-        /* Metrics / Cards */
-        div[data-testid="stMetric"] {
-            background-color: var(--bg-card) !important;
-            border: 1px solid var(--border-color) !important;
-            border-radius: 12px;
-            padding: 15px !important;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        /* --- KANBAN CARD --- */
+        .kanban-card {
+            background-color: var(--bg-input);
+            border-left: 4px solid var(--primary-orange);
+            padding: 12px;
+            border-radius: 0 8px 8px 0;
+            margin-bottom: 12px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
             transition: transform 0.2s;
         }
         
-        div[data-testid="stMetric"]:hover {
-            border-color: var(--primary-orange) !important;
-            box-shadow: 0 4px 12px rgba(255, 94, 0, 0.15);
-        }
-
-        div[data-testid="stMetric"] label {
-            color: var(--text-muted) !important;
-            font-size: 0.9rem !important;
-        }
-        
-        div[data-testid="stMetric"] div[data-testid="stMetricValue"] {
-            color: var(--primary-orange) !important;
-            font-size: 1.8rem !important;
-            font-weight: 700 !important;
-            text-shadow: 0 0 10px rgba(255, 94, 0, 0.2);
-        }
-
-        /* Custom Cards (e.g. Kanban) */
-        .kanban-card {
-            background: var(--bg-card);
-            padding: 12px;
-            border-radius: 8px;
-            border-left: 3px solid var(--primary-orange);
-            margin-bottom: 10px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-            color: var(--text-main);
+        .kanban-card:hover {
+            background-color: #333;
+            transform: translateX(4px);
         }
         
         .kanban-card strong {
-            color: white;
+            color: var(--text-main);
+            font-size: 1rem;
             display: block;
-            margin-bottom: 4px;
+            margin-bottom: 6px;
         }
         
         .card-desc {
             color: var(--text-muted);
             font-size: 0.85rem;
+            line-height: 1.4;
         }
 
-        /* Dividers */
-        hr {
-            border-color: var(--border-color) !important;
-        }
-        
-        /* Expander */
-        .streamlit-expanderHeader {
-            background-color: var(--bg-card) !important;
-            color: var(--text-main) !important;
-            border: 1px solid var(--border-color);
-            border-radius: 6px;
-        }
-
-        /* Toast / Alerts */
-        div[data-testid="stToast"] {
-            background-color: var(--bg-card) !important;
-            border-left: 4px solid var(--primary-orange) !important;
-        }
-        
+        /* --- ALERTS --- */
         div[data-testid="stAlert"] {
-            background-color: rgba(255, 94, 0, 0.1) !important;
-            border: 1px solid rgba(255, 94, 0, 0.3) !important;
-            color: var(--text-main) !important;
+            background-color: rgba(230, 126, 34, 0.05) !important;
+            border: 1px solid rgba(230, 126, 34, 0.2) !important;
         }
 
+        /* --- TABLES --- */
+        thead tr th {
+            background-color: var(--bg-input) !important;
+            color: var(--text-main) !important;
+            font-weight: 600 !important;
+        }
+        tbody tr td {
+            background-color: var(--bg-elevated) !important;
+            color: var(--text-muted) !important;
+            border-bottom: 1px solid var(--border-subtle) !important;
+        }
+        
         /* Scrollbar */
         ::-webkit-scrollbar {
-            width: 10px;
-            height: 10px;
+            width: 8px;
+            height: 8px;
         }
         ::-webkit-scrollbar-track {
-            background: var(--bg-dark); 
+            background: var(--bg-dark);
         }
         ::-webkit-scrollbar-thumb {
-            background: #333; 
-            border-radius: 5px;
+            background: #444;
+            border-radius: 4px;
         }
         ::-webkit-scrollbar-thumb:hover {
-            background: var(--primary-orange); 
+            background: var(--primary-orange);
         }
 
     </style>
