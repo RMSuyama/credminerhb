@@ -28,3 +28,12 @@ def get_address_from_viacep(cep):
     except Exception as e:
         print(f"Error fetching CEP: {e}")
         return None
+
+def update_all_indices():
+    """
+    Simulates updating financial indices.
+    In a real scenario, this would fetch data from an API (e.g. BCB).
+    """
+    import time
+    time.sleep(2) # Simulate network request
+    return True
