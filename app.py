@@ -61,28 +61,28 @@ else:
         selected_module = "Dashboard" # Default
         
         # Principal
-        st.markdown("**PRINCIPAL**")
-        if st.button("📊 Dashboard", use_container_width=True): st.session_state['page'] = "Dashboard"
+        st.markdown("PRINCIPAL")
+        if st.button("Dashboard", use_container_width=True): st.session_state['page'] = "Dashboard"
         
-        st.markdown("**ADMINISTRATIVO**")
-        if st.button("🏢 Clientes e Foros", use_container_width=True): st.session_state['page'] = "Clientes"
-        if st.button("👥 Cadastro de Devedores", use_container_width=True): st.session_state['page'] = "Devedores"
-        if st.button("💰 Gerenciar Dívidas", use_container_width=True): st.session_state['page'] = "Dívidas"
+        st.markdown("ADMINISTRATIVO")
+        if st.button("Clientes e Foros", use_container_width=True): st.session_state['page'] = "Clientes"
+        if st.button("Cadastro de Devedores", use_container_width=True): st.session_state['page'] = "Devedores"
+        if st.button("Gerenciar Dívidas", use_container_width=True): st.session_state['page'] = "Dívidas"
         
-        st.markdown("**JUDICIAL**")
-        if st.button("⚖️ Processos e Custas", use_container_width=True): st.session_state['page'] = "Judicial"
-        if st.button("📄 Modelos de Petição", use_container_width=True): st.session_state['page'] = "Petições"
+        st.markdown("JUDICIAL")
+        if st.button("Processos e Custas", use_container_width=True): st.session_state['page'] = "Judicial"
+        if st.button("Modelos de Petição", use_container_width=True): st.session_state['page'] = "Petições"
         
-        st.markdown("**FINANCEIRO**")
-        if st.button("🧮 Negociação / Simulação", use_container_width=True): st.session_state['page'] = "Simulação"
-        if st.button("🤝 Gerenciar Acordos", use_container_width=True): st.session_state['page'] = "Acordos"
-        if st.button("💸 Registrar Pagamento", use_container_width=True): st.session_state['page'] = "Pagamentos"
+        st.markdown("FINANCEIRO")
+        if st.button("Negociação / Simulação", use_container_width=True): st.session_state['page'] = "Simulação"
+        if st.button("Gerenciar Acordos", use_container_width=True): st.session_state['page'] = "Acordos"
+        if st.button("Registrar Pagamento", use_container_width=True): st.session_state['page'] = "Pagamentos"
         
         st.divider()
-        if st.button("⚙️ Configurações", use_container_width=True): st.session_state['page'] = "Configurações"
+        if st.button("Configurações", use_container_width=True): st.session_state['page'] = "Configurações"
         
         st.markdown("---")
-        if st.button("🚪 Sair", use_container_width=True):
+        if st.button("Sair", use_container_width=True):
             st.session_state['logged_in'] = False
             st.query_params.clear()
             st.rerun()

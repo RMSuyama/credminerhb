@@ -64,7 +64,7 @@ def load_custom_css():
             color: var(--text-muted) !important;
             text-align: left !important;
             width: 100%;
-            padding: 0.6rem 1rem !important;
+            padding: 0.6rem 0.6rem !important; /* Reduced left padding to align left */
             margin-bottom: 4px;
             font-weight: 500 !important;
             transition: all 0.2s ease;
@@ -74,7 +74,7 @@ def load_custom_css():
         section[data-testid="stSidebar"] div.stButton button:hover {
             background: rgba(230, 126, 34, 0.1) !important;
             color: var(--primary-orange) !important;
-            padding-left: 1.2rem !important; /* Slide effect */
+            padding-left: 0.8rem !important; /* Subtle slide effect */
         }
         
         section[data-testid="stSidebar"] div.stButton button:focus {
@@ -162,8 +162,8 @@ def load_custom_css():
         div[data-testid="stMetric"], div.stDataFrame, .stExpander {
             background-color: var(--bg-elevated) !important;
             border: 1px solid var(--border-subtle) !important;
-            border-radius: 10px;
-            box-shadow: var(--shadow-card);
+            border-radius: 4px !important; /* Sharper corners */
+            box-shadow: none !important; /* Flat design */
         }
         
         /* Metric Specifics */
@@ -258,9 +258,9 @@ def load_custom_css():
         div[draggable="true"] {
             background-color: var(--bg-input) !important;
             color: var(--text-main) !important; /* Ensure text is visible */
-            border-radius: 8px !important;
+            border-radius: 4px !important; /* Sharper card corners */
             border: 1px solid var(--border-subtle) !important;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.2) !important;
+            box-shadow: none !important; /* Flat card */
             margin-bottom: 8px !important;
             padding: 12px !important;
             font-size: 0.95rem !important;
