@@ -245,7 +245,20 @@ def render_debts():
     # List Debts
     if not debts.empty:
         st.markdown("### Dívidas Cadastradas")
-        st.dataframe(debts[['contract_type', 'description', 'original_value', 'due_date']], use_container_width=True)
+        
+        # Format Dates and Rename Columns
+        display_df = debts.copy()
+        if 'due_date' in display_df.columns:
+            display_df['due_date'] = pd.to_datetime(display_df['due_date']).dt.strftime('%d/%m/%Y')
+            
+        display_df = display_df.rename(columns={
+            'contract_type': 'Tipo de Contrato',
+            'description': 'Descrição',
+            'original_value': 'Valor Original (R$)',
+            'due_date': 'Vencimento'
+        })
+        
+        st.dataframe(display_df[['Tipo de Contrato', 'Descrição', 'Valor Original (R$)', 'Vencimento']], use_container_width=True)
     else:
         st.info("Nenhuma dívida cadastrada.")
     

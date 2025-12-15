@@ -281,6 +281,15 @@ def init_db():
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         ''')
+
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS kanban_columns (
+                id SERIAL PRIMARY KEY,
+                name TEXT NOT NULL,
+                order_index INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
         
     else:
         # SQLite Table Definitions (original)
@@ -529,6 +538,15 @@ def init_db():
                 order_index INTEGER DEFAULT 0,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS kanban_columns (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                order_index INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         ''')
     
@@ -1033,3 +1051,63 @@ def get_debts(debtor_id=None):
         return pd.DataFrame()
     finally:
          conn.close()
+
+def create_kanban_column(name):
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        # Get max order
+        cursor.execute("SELECT MAX(order_index) FROM kanban_columns")
+        res = cursor.fetchone()
+        max_order = res[0] if res and res[0] is not None else -1
+        new_order = max_order + 1
+        
+        cursor.execute("INSERT INTO kanban_columns (name, order_index) VALUES (?, ?)", (name, new_order))
+        conn.commit()
+        return True
+    except Exception as e:
+        print(f"Error creating column: {e}")
+        return False
+    finally:
+        conn.close()
+
+def get_kanban_columns():
+    conn = get_connection()
+    try:
+        # Check if table exists first (handling migration on fly if possible, or just fail softly)
+        return pd.read_sql_query("SELECT * FROM kanban_columns ORDER BY order_index", conn)
+    except Exception:
+        return pd.DataFrame()
+    finally:
+        conn.close()
+
+def delete_kanban_column(col_id):
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("DELETE FROM kanban_columns WHERE id = ?", (col_id,))
+        conn.commit()
+        return True
+    except Exception as e:
+        print(f"Error deleting column: {e}")
+        return False
+    finally:
+        conn.close()
+
+def update_kanban_card_status(card_id, new_status):
+    """Updates the status of a card."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        import sqlite3
+        if USE_SUPABASE and not isinstance(conn, sqlite3.Connection):
+             cursor.execute("UPDATE kanban_cards SET status = %s WHERE id = %s", (new_status, card_id))
+        else:
+             cursor.execute("UPDATE kanban_cards SET status = ? WHERE id = ?", (new_status, card_id))
+        conn.commit()
+        return True
+    except Exception as e:
+        print(f"Error updating card status: {e}")
+        return False
+    finally:
+        conn.close()
