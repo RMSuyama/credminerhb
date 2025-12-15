@@ -501,6 +501,13 @@ def main_app():
         </style>
         """, unsafe_allow_html=True)
         
+        # Ensure active_section is in session state
+        if 'active_section' not in st.session_state:
+            st.session_state['active_section'] = "Administrativo"
+
+        # Primary section selector
+        st.selectbox("Seção", options=["Administrativo", "Cálculos", "Judicial", "Extrajudicial"], index=["Administrativo", "Cálculos", "Judicial", "Extrajudicial"].index(st.session_state['active_section']), key='active_section', help="Escolha a área do sistema")
+
         # Navigation Buttons Helper
         def nav_button(label, page_name, icon):
             is_active = st.session_state['active_tab'] == page_name
@@ -520,15 +527,29 @@ def main_app():
                 st.session_state['active_tab'] = page_name
                 st.rerun()
 
-        nav_button("Painel Geral", "Dashboard", "")
-        nav_button("Clientes", "Gerenciar Clientes", "")
-        nav_button("Devedores", "Cadastro de Devedores", "")
-        nav_button("Dívidas", "Gerenciar Dívidas", "")
-        nav_button("Judicial", "Judicialização", "")
-        nav_button("Simulação", "Negociação / Simulação", "")
-        nav_button("Pagamentos", "Registrar Pagamento", "")
-        nav_button("Acordos", "Gerenciar Acordos", "")
-        nav_button("Configurações", "Configurações Avançadas", "")
+        # Grouped navigation based on selected section
+        if st.session_state['active_section'] == "Administrativo":
+            st.markdown("**Administrativo**")
+            nav_button("Painel Geral", "Dashboard", "")
+            nav_button("Clientes", "Gerenciar Clientes", "")
+            nav_button("Devedores", "Cadastro de Devedores", "")
+            nav_button("Dívidas", "Gerenciar Dívidas", "")
+            nav_button("Configurações", "Configurações Avançadas", "")
+
+        elif st.session_state['active_section'] == "Cálculos":
+            st.markdown("**Cálculos & Relatórios**")
+            nav_button("Simulação", "Negociação / Simulação", "")
+            nav_button("Memorial / Extrato", "Negociação / Simulação", "")
+
+        elif st.session_state['active_section'] == "Judicial":
+            st.markdown("**Judicial**")
+            nav_button("Judicialização", "Judicialização", "")
+            nav_button("Modelos de Petição", "Modelos de Petição", "")
+
+        elif st.session_state['active_section'] == "Extrajudicial":
+            st.markdown("**Extrajudicial**")
+            nav_button("Pagamentos", "Registrar Pagamento", "")
+            nav_button("Acordos", "Gerenciar Acordos", "")
         
         st.divider()
         
@@ -637,6 +658,87 @@ def main_app():
         
         conn = get_connection()
         try:
+            # --- Kanban Board (Trello-like) ---
+            st.markdown("### Quadro de Tarefas (Kanban)")
+            # New card form
+            with st.expander("Adicionar nova tarefa"):
+                new_title = st.text_input("Título", key='kanban_new_title')
+                new_desc = st.text_area("Descrição", key='kanban_new_desc')
+                new_status = st.selectbox("Status", options=['todo', 'in_progress', 'done'], index=0, format_func=lambda x: {'todo':'A Fazer','in_progress':'Em Progresso','done':'Concluído'}[x])
+                if st.button("Adicionar Tarefa"):
+                    from src.database import create_kanban_card
+                    if new_title and new_title.strip():
+                        create_kanban_card(new_title.strip(), new_desc.strip() if new_desc else None, new_status)
+                        st.success("Tarefa criada.")
+                        st.experimental_rerun()
+
+            # Board columns
+            from src.database import get_kanban_cards, update_kanban_card, delete_kanban_card
+            todo_cards = get_kanban_cards(status='todo')
+            inprog_cards = get_kanban_cards(status='in_progress')
+            done_cards = get_kanban_cards(status='done')
+
+            col_todo, col_inprog, col_done = st.columns(3)
+
+            def render_card(card, idx, column_key, cards_list):
+                st.markdown(f"<div class='kanban-card' id='card-{card['id']}'><strong>{card['title']}</strong><div class='card-desc'>{card['description'] or ''}</div></div>", unsafe_allow_html=True)
+                # Actions
+                cols = st.columns([1,1,1,1])
+                with cols[0]:
+                    if st.button("←", key=f"move_left_{column_key}_{card['id']}"):
+                        # move left
+                        new_status = 'todo' if column_key == 'in_progress' else ('in_progress' if column_key == 'done' else 'todo')
+                        # set order_index to end of new column
+                        target_cards = get_kanban_cards(status=new_status)
+                        max_index = max([c['order_index'] for c in target_cards], default=-1)
+                        update_kanban_card(card['id'], status=new_status, order_index=max_index+1)
+                        st.experimental_rerun()
+                with cols[1]:
+                    if st.button("→", key=f"move_right_{column_key}_{card['id']}"):
+                        new_status = 'in_progress' if column_key == 'todo' else ('done' if column_key == 'in_progress' else 'done')
+                        target_cards = get_kanban_cards(status=new_status)
+                        max_index = max([c['order_index'] for c in target_cards], default=-1)
+                        update_kanban_card(card['id'], status=new_status, order_index=max_index+1)
+                        st.experimental_rerun()
+                with cols[2]:
+                    if st.button("↑", key=f"up_{column_key}_{card['id']}"):
+                        # reorder up
+                        if idx > 0:
+                            above = cards_list[idx-1]
+                            update_kanban_card(above['id'], order_index=card['order_index'])
+                            update_kanban_card(card['id'], order_index=above['order_index'])
+                            st.experimental_rerun()
+                with cols[3]:
+                    if st.button("🗑", key=f"del_{column_key}_{card['id']}"):
+                        delete_kanban_card(card['id'])
+                        st.experimental_rerun()
+
+            # CSS for Kanban look
+            st.markdown("""
+            <style>
+            .kanban-card { background: #fff; padding: 10px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); margin-bottom: 8px; }
+            .kanban-column { background: #f4f6f8; padding: 8px; border-radius: 6px; min-height: 120px; }
+            .card-desc { color: #555; font-size: 13px; margin-top: 6px; }
+            </style>
+            """, unsafe_allow_html=True)
+
+            with col_todo:
+                st.markdown("**A Fazer**")
+                st.divider()
+                for i, c in enumerate(todo_cards):
+                    render_card(c, i, 'todo', todo_cards)
+
+            with col_inprog:
+                st.markdown("**Em Progresso**")
+                st.divider()
+                for i, c in enumerate(inprog_cards):
+                    render_card(c, i, 'in_progress', inprog_cards)
+
+            with col_done:
+                st.markdown("**Concluído**")
+                st.divider()
+                for i, c in enumerate(done_cards):
+                    render_card(c, i, 'done', done_cards)
             # ===== QUERIES PARA ANÁLISES =====
             # Dados básicos
             total_debtors = pd.read_sql_query("SELECT count(*) as cnt FROM debtors", conn).iloc[0, 0]
@@ -1411,6 +1513,73 @@ def main_app():
                     else:
                         st.info('Nenhum modelo disponível para o tipo de processo.')
 
+                    st.divider()
+                    # Quick Procuração/Substabelecimento generation for this process
+                    st.subheader('Diversos (Procuração / Substabelecimento)')
+                    colp1, colp2 = st.columns(2)
+                    with colp1:
+                        st.markdown('**Gerar Procuração**')
+                        attorney_name = st.text_input('Nome do Advogado (Procuração)', key=f'proc_attorney_name_{selected_single_proc}')
+                        attorney_oab = st.text_input('OAB', key=f'proc_attorney_oab_{selected_single_proc}')
+                        if st.button('Gerar Procuração (Salvar no Processo)', key=f'gen_proc_{selected_single_proc}'):
+                            try:
+                                # Find Procuração template for this process type
+                                tpl_list = get_petition_templates(proc_row['process_type'])
+                                proc_tpl = None
+                                if tpl_list:
+                                    for t in tpl_list:
+                                        if 'Procuração' in t['name'] or 'Procuração' in (t.get('description') or ''):
+                                            proc_tpl = t
+                                            break
+                                tpl_content = proc_tpl['template_content'] if proc_tpl else None
+                                context = {
+                                    'debtor_name': debtor_row['name'],
+                                    'debtor_cpf_cnpj': debtor_row['cpf_cnpj'],
+                                    'attorney_name': attorney_name,
+                                    'attorney_oab': attorney_oab,
+                                    'today': date.today().strftime('%d/%m/%Y')
+                                }
+                                rendered = render_template_text(tpl_content, context) if tpl_content else f"PROCURAÇÃO - {debtor_row['name']} para {attorney_name} - OAB {attorney_oab}"
+                                new_pet_id = create_judicial_petition(selected_single_proc, 'Procuração', template_id=(proc_tpl['id'] if proc_tpl else None), content=rendered, status='gerada')
+                                pdfb = PDFGenerator().generate_petition_pdf('Procuração', rendered, metadata={'debtor': debtor_row['name'], 'attorney': attorney_name})
+                                st.download_button('⬇️ Baixar Procuração (PDF)', pdfb, file_name=f'proc_{selected_single_proc}_{new_pet_id}.pdf')
+                                st.success('Procuração gerada e salva ao processo.')
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f'Erro ao gerar procuração: {e}')
+
+                    with colp2:
+                        st.markdown('**Gerar Substabelecimento**')
+                        origin_attorney = st.text_input('Advogado de Origem', key=f'subst_origin_{selected_single_proc}')
+                        origin_oab = st.text_input('OAB Origem', key=f'subst_origin_oab_{selected_single_proc}')
+                        dest_attorney = st.text_input('Advogado Destino', key=f'subst_dest_{selected_single_proc}')
+                        dest_oab = st.text_input('OAB Destino', key=f'subst_dest_oab_{selected_single_proc}')
+                        if st.button('Gerar Substabelecimento (Salvar no Processo)', key=f'gen_subst_{selected_single_proc}'):
+                            try:
+                                tpl_list = get_petition_templates(proc_row['process_type'])
+                                subst_tpl = None
+                                if tpl_list:
+                                    for t in tpl_list:
+                                        if 'Substabelecimento' in t['name'] or 'Substabelecimento' in (t.get('description') or ''):
+                                            subst_tpl = t
+                                            break
+                                tpl_content = subst_tpl['template_content'] if subst_tpl else None
+                                context = {
+                                    'origin_attorney': origin_attorney,
+                                    'origin_oab': origin_oab,
+                                    'dest_attorney': dest_attorney,
+                                    'dest_oab': dest_oab,
+                                    'today': date.today().strftime('%d/%m/%Y')
+                                }
+                                rendered = render_template_text(tpl_content, context) if tpl_content else f"SUBSTABELECIMENTO - {origin_attorney} -> {dest_attorney} - {date.today().strftime('%d/%m/%Y')}"
+                                new_pet_id = create_judicial_petition(selected_single_proc, 'Substabelecimento', template_id=(subst_tpl['id'] if subst_tpl else None), content=rendered, status='gerada')
+                                pdfb2 = PDFGenerator().generate_petition_pdf('Substabelecimento', rendered, metadata={'origin': origin_attorney, 'dest': dest_attorney})
+                                st.download_button('⬇️ Baixar Substabelecimento (PDF)', pdfb2, file_name=f'subst_{selected_single_proc}_{new_pet_id}.pdf')
+                                st.success('Substabelecimento gerado e salvo ao processo.')
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f'Erro ao gerar substabelecimento: {e}')
+
     elif page == "Cadastro de Devedores":
         page_header("Gestão de Devedores")
         
@@ -2013,13 +2182,19 @@ def main_app():
                             debtor_name = debtor_info[0] if debtor_info else "Devedor"
                             debtor_cpf = debtor_info[1] if debtor_info else "N/A"
                             
-                            # Calculations data
+                            # Calculations data - use Decimal to avoid mixing with float
+                            try:
+                                total_original = Decimal(str(debts['original_value'].sum()))
+                            except Exception:
+                                total_original = Decimal(debts['original_value'].sum())
+                            fine_amount_val = (total_original * Decimal('0.02')).quantize(Decimal('0.01'))
+                            total_updated_val = (total_original * Decimal('1.05')).quantize(Decimal('0.01'))
                             calculations = {
                                 'selic_rate': '10.50%',
                                 'ipca_rate': '6.25%',
                                 'interest_rate': '1.00%',
-                                'fine_amount': f"R$ {debts['original_value'].sum() * 0.02:,.2f}",
-                                'total_updated': f"R$ {debts['original_value'].sum() * 1.05:,.2f}",
+                                'fine_amount': f"R$ {float(fine_amount_val):,.2f}",
+                                'total_updated': f"R$ {float(total_updated_val):,.2f}",
                             }
                             
                             pdf_bytes = pdf_gen.generate_debt_memory(
@@ -2191,7 +2366,6 @@ def main_app():
                     conn = get_connection()
                     cursor = conn.cursor()
                     try:
-                        from dateutil.relativedelta import relativedelta
                         
                         # Determine client_id for debtor
                         debtor_info = pd.read_sql_query("SELECT client_id FROM debtors WHERE id = ?", conn, params=(selected_debtor_id,))
@@ -2282,11 +2456,16 @@ def main_app():
                     
                     # Totals Logic
                     subtotal_corrected = df_res['total'].sum()
+                    # Ensure Decimal arithmetic
+                    try:
+                        subtotal_corrected = Decimal(str(subtotal_corrected))
+                    except Exception:
+                        subtotal_corrected = Decimal(subtotal_corrected)
                     
                     # 3. Attorney Fees (5%)
                     # The report applies fees on the SUBOTAL (Correction + Interest + Fine)
                     attorney_fees_percent = Decimal("0.05")
-                    attorney_fees_value = subtotal_corrected * attorney_fees_percent
+                    attorney_fees_value = (subtotal_corrected * attorney_fees_percent).quantize(Decimal('0.01'))
                     
                     grand_total = subtotal_corrected + attorney_fees_value
                     
@@ -2300,9 +2479,9 @@ def main_app():
                     
                     # Summary Metrics
                     c1, c2, c3 = st.columns(3)
-                    c1.metric("Subtotal (Dívida + Custas)", f"R$ {subtotal_corrected:,.2f}")
-                    c2.metric("Honorários (5%)", f"R$ {attorney_fees_value:,.2f}")
-                    c3.metric("TOTAL GERAL", f"R$ {grand_total:,.2f}", delta="Base para Acordo")
+                    c1.metric("Subtotal (Dívida + Custas)", f"R$ {float(subtotal_corrected):,.2f}")
+                    c2.metric("Honorários (5%)", f"R$ {float(attorney_fees_value):,.2f}")
+                    c3.metric("TOTAL GERAL", f"R$ {float(grand_total):,.2f}", delta="Base para Acordo")
                     
                     # Report Button
                     if st.button("Gerar Memorial de Cálculo (Original)", help="Gera o relatório da dívida atualizada sem acordo (Cálculo Puro)."):
@@ -2341,8 +2520,8 @@ def main_app():
                                 'selic_rate': 'N/A',
                                 'ipca_rate': 'N/A',
                                 'interest_rate': 'N/A',
-                                'fine_amount': f"R$ {subtotal_corrected * 0.02:,.2f}",
-                                'total_updated': f"R$ {subtotal_corrected:,.2f}"
+                                'fine_amount': f"R$ {float((subtotal_corrected * Decimal('0.02')).quantize(Decimal('0.01'))):,.2f}",
+                                'total_updated': f"R$ {float(subtotal_corrected):,.2f}"
                             }
 
                             # Get debtor info
@@ -2354,6 +2533,22 @@ def main_app():
                             debtor_name = debtor_info[0] if debtor_info else 'Devedor'
                             debtor_cpf = debtor_info[1] if debtor_info else 'N/A'
 
+                            # Defensive: ensure numeric values are plain floats (avoid Decimal * float issues)
+                            for d in debts_for_pdf:
+                                val = d.get('original_value', 0)
+                                try:
+                                    # convert Decimal to float, leave floats as-is
+                                    if hasattr(val, 'quantize') or isinstance(val, (int,)):
+                                        d['original_value'] = float(val)
+                                    else:
+                                        d['original_value'] = float(val)
+                                except Exception:
+                                    d['original_value'] = float(str(val)) if val is not None else 0.0
+
+                            # calculations_data should contain display strings already; ensure totals are strings
+                            calculations_data['fine_amount'] = str(calculations_data.get('fine_amount', 'R$ 0,00'))
+                            calculations_data['total_updated'] = str(calculations_data.get('total_updated', 'R$ 0,00'))
+
                             pdf_bytes = PDFGenerator().generate_debt_memory(debtor_name, debtor_cpf, debts_for_pdf, calculations_data)
                             st.download_button(
                                 label="⬇️ Baixar Memorial de Cálculo (PDF)",
@@ -2362,7 +2557,11 @@ def main_app():
                                 mime="application/pdf"
                             )
                         except Exception as e:
-                            st.error(f"Erro ao gerar Memorial de Cálculo: {e}")
+                            import traceback
+                            tb = traceback.format_exc()
+                            # Print full traceback to console for debugging
+                            print("Error generating memorial PDF:\n", tb)
+                            st.error(f"Erro ao gerar Memorial de Cálculo: {e}. Detalhes nos logs do servidor.")
 
                 st.divider()
                 st.subheader("2. Proposta de Acordo")

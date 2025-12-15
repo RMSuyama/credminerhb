@@ -267,6 +267,19 @@ def init_db():
                 FOREIGN KEY (template_id) REFERENCES petition_templates (id) ON DELETE SET NULL
             )
         ''')
+
+        # Kanban / Board for simple task tracking
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS kanban_cards (
+                id SERIAL PRIMARY KEY,
+                title TEXT NOT NULL,
+                description TEXT,
+                status TEXT DEFAULT 'todo',
+                order_index INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
         
     else:
         # SQLite Table Definitions (original)
@@ -504,6 +517,19 @@ def init_db():
                 FOREIGN KEY (template_id) REFERENCES petition_templates (id)
             )
         ''')
+
+        # Kanban / Board for simple task tracking
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS kanban_cards (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                title TEXT NOT NULL,
+                description TEXT,
+                status TEXT DEFAULT 'todo',
+                order_index INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
     
     conn.commit()
     conn.close()
@@ -528,8 +554,12 @@ def create_default_admin():
         salt = bcrypt.gensalt()
         hashed = bcrypt.hashpw(password, salt)
         
-        cursor.execute('INSERT INTO users (username, password_hash) VALUES (%s, %s)' if USE_SUPABASE else 'INSERT INTO users (username, password_hash) VALUES (?, ?)', 
-                       (('admin', hashed.decode('utf-8'))))
+        # Determine placeholder style based on actual connection type
+        use_postgres_style = USE_SUPABASE and not isinstance(conn, sqlite3.Connection)
+        if use_postgres_style:
+            cursor.execute('INSERT INTO users (username, password_hash) VALUES (%s, %s)', ('admin', hashed.decode('utf-8')))
+        else:
+            cursor.execute('INSERT INTO users (username, password_hash) VALUES (?, ?)', ('admin', hashed.decode('utf-8')))
         conn.commit()
         print("Default admin user created.")
     
@@ -540,8 +570,10 @@ def get_petition_templates(process_type=None):
     """Return petition templates from DB filtered by process_type if provided."""
     conn = get_connection()
     cursor = conn.cursor()
+    # Choose parameter placeholder style based on actual connection type
+    use_postgres_style = USE_SUPABASE and not isinstance(conn, sqlite3.Connection)
     if process_type:
-        query = 'SELECT id, name, process_type, description, template_content FROM petition_templates WHERE process_type = %s' if USE_SUPABASE else 'SELECT id, name, process_type, description, template_content FROM petition_templates WHERE process_type = ?'
+        query = 'SELECT id, name, process_type, description, template_content FROM petition_templates WHERE process_type = %s' if use_postgres_style else 'SELECT id, name, process_type, description, template_content FROM petition_templates WHERE process_type = ?'
         cursor.execute(query, (process_type,))
     else:
         query = 'SELECT id, name, process_type, description, template_content FROM petition_templates'
@@ -570,6 +602,7 @@ def seed_default_petition_templates():
 
     conn = get_connection()
     cursor = conn.cursor()
+    use_postgres_style = USE_SUPABASE and not isinstance(conn, sqlite3.Connection)
     # Check if any templates exist
     cursor.execute('SELECT count(*) FROM petition_templates')
     count = cursor.fetchone()[0]
@@ -581,7 +614,7 @@ def seed_default_petition_templates():
             name = data.get('name')
             description = data.get('description')
             template_content = data.get('content')
-            if USE_SUPABASE:
+            if use_postgres_style:
                 cursor.execute('INSERT INTO petition_templates (name, process_type, description, template_content) VALUES (%s, %s, %s, %s)', (name, process_type, description, template_content))
             else:
                 cursor.execute('INSERT INTO petition_templates (name, process_type, description, template_content) VALUES (?, ?, ?, ?)', (name, process_type, description, template_content))
@@ -596,30 +629,31 @@ def list_judicial_processes(filters=None):
     """
     conn = get_connection()
     cursor = conn.cursor()
+    use_postgres_style = USE_SUPABASE and not isinstance(conn, sqlite3.Connection)
     base_query = 'SELECT id, debtor_id, client_id, debt_id, process_type, process_number, forum_id, vara, distribution_date, status, description, notes FROM judicial_processes'
     params = []
     if filters:
         clauses = []
         if 'client_id' in filters and filters['client_id']:
-            clauses.append('client_id = %s' if USE_SUPABASE else 'client_id = ?')
+            clauses.append('client_id = %s' if use_postgres_style else 'client_id = ?')
             params.append(filters['client_id'])
         if 'process_type' in filters and filters['process_type']:
-            clauses.append('process_type = %s' if USE_SUPABASE else 'process_type = ?')
+            clauses.append('process_type = %s' if use_postgres_style else 'process_type = ?')
             params.append(filters['process_type'])
         if 'status' in filters and filters['status']:
-            clauses.append('status = %s' if USE_SUPABASE else 'status = ?')
+            clauses.append('status = %s' if use_postgres_style else 'status = ?')
             params.append(filters['status'])
         if 'forum_id' in filters and filters['forum_id']:
-            clauses.append('forum_id = %s' if USE_SUPABASE else 'forum_id = ?')
+            clauses.append('forum_id = %s' if use_postgres_style else 'forum_id = ?')
             params.append(filters['forum_id'])
         if 'vara' in filters and filters['vara']:
-            clauses.append('vara = %s' if USE_SUPABASE else 'vara = ?')
+            clauses.append('vara = %s' if use_postgres_style else 'vara = ?')
             params.append(filters['vara'])
         if 'distribution_date_from' in filters and filters['distribution_date_from']:
-            clauses.append('distribution_date >= %s' if USE_SUPABASE else 'distribution_date >= ?')
+            clauses.append('distribution_date >= %s' if use_postgres_style else 'distribution_date >= ?')
             params.append(filters['distribution_date_from'])
         if 'distribution_date_to' in filters and filters['distribution_date_to']:
-            clauses.append('distribution_date <= %s' if USE_SUPABASE else 'distribution_date <= ?')
+            clauses.append('distribution_date <= %s' if use_postgres_style else 'distribution_date <= ?')
             params.append(filters['distribution_date_to'])
         if clauses:
             base_query += ' WHERE ' + ' AND '.join(clauses)
@@ -651,10 +685,11 @@ def create_judicial_petition(process_id, petition_type, template_id=None, conten
     """
     conn = get_connection()
     cursor = conn.cursor()
+    use_postgres_style = USE_SUPABASE and not isinstance(conn, sqlite3.Connection)
     if petition_date is None:
         import datetime
         petition_date = datetime.date.today()
-    if USE_SUPABASE:
+    if use_postgres_style:
         cursor.execute('INSERT INTO judicial_petitions (process_id, petition_type, template_id, petition_date, status, content) VALUES (%s, %s, %s, %s, %s, %s) RETURNING id', (process_id, petition_type, template_id, petition_date, status, content))
         result = cursor.fetchone()
         petition_id = result[0]
@@ -670,7 +705,8 @@ def create_judicial_process(debtor_id, client_id, debt_id=None, process_type='in
     """Create a judicial process record and return its id."""
     conn = get_connection()
     cursor = conn.cursor()
-    if USE_SUPABASE:
+    use_postgres_style = USE_SUPABASE and not isinstance(conn, sqlite3.Connection)
+    if use_postgres_style:
         cursor.execute('INSERT INTO judicial_processes (debtor_id, client_id, debt_id, process_type, process_number, forum_id, vara, distribution_date, status, description, notes) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id',
                        (debtor_id, client_id, debt_id, process_type, process_number, forum_id, vara, distribution_date, status, description, notes))
         new_id = cursor.fetchone()[0]
@@ -687,7 +723,8 @@ def list_judicial_petitions(process_id):
     """List petitions linked to a judicial process."""
     conn = get_connection()
     cursor = conn.cursor()
-    if USE_SUPABASE:
+    use_postgres_style = USE_SUPABASE and not isinstance(conn, sqlite3.Connection)
+    if use_postgres_style:
         cursor.execute('SELECT id, petition_type, template_id, petition_date, status, content FROM judicial_petitions WHERE process_id = %s ORDER BY petition_date DESC', (process_id,))
     else:
         cursor.execute('SELECT id, petition_type, template_id, petition_date, status, content FROM judicial_petitions WHERE process_id = ? ORDER BY petition_date DESC', (process_id,))
@@ -709,7 +746,8 @@ def list_judicial_petitions(process_id):
 def update_judicial_petition_status(petition_id, status):
     conn = get_connection()
     cursor = conn.cursor()
-    if USE_SUPABASE:
+    use_postgres_style = USE_SUPABASE and not isinstance(conn, sqlite3.Connection)
+    if use_postgres_style:
         cursor.execute('UPDATE judicial_petitions SET status = %s WHERE id = %s', (status, petition_id))
     else:
         cursor.execute('UPDATE judicial_petitions SET status = ? WHERE id = ?', (status, petition_id))
@@ -722,7 +760,8 @@ def get_template_by_id(template_id):
     """Return a petition template by id."""
     conn = get_connection()
     cursor = conn.cursor()
-    if USE_SUPABASE:
+    use_postgres_style = USE_SUPABASE and not isinstance(conn, sqlite3.Connection)
+    if use_postgres_style:
         cursor.execute('SELECT id, name, process_type, description, template_content FROM petition_templates WHERE id = %s', (template_id,))
     else:
         cursor.execute('SELECT id, name, process_type, description, template_content FROM petition_templates WHERE id = ?', (template_id,))
@@ -742,7 +781,8 @@ def get_template_by_id(template_id):
 def create_petition_template(name, process_type, description, template_content):
     conn = get_connection()
     cursor = conn.cursor()
-    if USE_SUPABASE:
+    use_postgres_style = USE_SUPABASE and not isinstance(conn, sqlite3.Connection)
+    if use_postgres_style:
         cursor.execute('INSERT INTO petition_templates (name, process_type, description, template_content) VALUES (%s, %s, %s, %s) RETURNING id', (name, process_type, description, template_content))
         new_id = cursor.fetchone()[0]
     else:
@@ -756,25 +796,26 @@ def create_petition_template(name, process_type, description, template_content):
 def update_petition_template(template_id, name=None, process_type=None, description=None, template_content=None):
     conn = get_connection()
     cursor = conn.cursor()
+    use_postgres_style = USE_SUPABASE and not isinstance(conn, sqlite3.Connection)
     # Build update parts
     sets = []
     params = []
     if name is not None:
-        sets.append('name = %s' if USE_SUPABASE else 'name = ?')
+        sets.append('name = %s' if use_postgres_style else 'name = ?')
         params.append(name)
     if process_type is not None:
-        sets.append('process_type = %s' if USE_SUPABASE else 'process_type = ?')
+        sets.append('process_type = %s' if use_postgres_style else 'process_type = ?')
         params.append(process_type)
     if description is not None:
-        sets.append('description = %s' if USE_SUPABASE else 'description = ?')
+        sets.append('description = %s' if use_postgres_style else 'description = ?')
         params.append(description)
     if template_content is not None:
-        sets.append('template_content = %s' if USE_SUPABASE else 'template_content = ?')
+        sets.append('template_content = %s' if use_postgres_style else 'template_content = ?')
         params.append(template_content)
     if not sets:
         conn.close()
         return False
-    query = 'UPDATE petition_templates SET ' + ', '.join(sets) + (' WHERE id = %s' if USE_SUPABASE else ' WHERE id = ?')
+    query = 'UPDATE petition_templates SET ' + ', '.join(sets) + (' WHERE id = %s' if use_postgres_style else ' WHERE id = ?')
     params.append(template_id)
     cursor.execute(query, tuple(params))
     conn.commit()
@@ -785,7 +826,8 @@ def update_petition_template(template_id, name=None, process_type=None, descript
 def delete_petition_template(template_id):
     conn = get_connection()
     cursor = conn.cursor()
-    if USE_SUPABASE:
+    use_postgres_style = USE_SUPABASE and not isinstance(conn, sqlite3.Connection)
+    if use_postgres_style:
         cursor.execute('DELETE FROM petition_templates WHERE id = %s', (template_id,))
     else:
         cursor.execute('DELETE FROM petition_templates WHERE id = ?', (template_id,))
@@ -831,3 +873,83 @@ def delete_debtor_by_cpf(cpf_cnpj: str):
         return target_id
     finally:
         conn.close()
+
+
+def get_kanban_cards(status=None):
+    """Return all kanban cards, optionally filtered by status, ordered by order_index."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    use_postgres_style = USE_SUPABASE and not isinstance(conn, sqlite3.Connection)
+    if status:
+        if use_postgres_style:
+            cursor.execute('SELECT id, title, description, status, order_index FROM kanban_cards WHERE status = %s ORDER BY order_index ASC', (status,))
+        else:
+            cursor.execute('SELECT id, title, description, status, order_index FROM kanban_cards WHERE status = ? ORDER BY order_index ASC', (status,))
+    else:
+        if use_postgres_style:
+            cursor.execute('SELECT id, title, description, status, order_index FROM kanban_cards ORDER BY status, order_index ASC')
+        else:
+            cursor.execute('SELECT id, title, description, status, order_index FROM kanban_cards ORDER BY status, order_index ASC')
+    rows = cursor.fetchall()
+    conn.close()
+    cards = []
+    for r in rows:
+        cards.append({'id': r[0], 'title': r[1], 'description': r[2], 'status': r[3], 'order_index': r[4]})
+    return cards
+
+
+def create_kanban_card(title, description=None, status='todo'):
+    conn = get_connection()
+    cursor = conn.cursor()
+    use_postgres_style = USE_SUPABASE and not isinstance(conn, sqlite3.Connection)
+    if use_postgres_style:
+        cursor.execute('INSERT INTO kanban_cards (title, description, status) VALUES (%s, %s, %s) RETURNING id', (title, description, status))
+        new_id = cursor.fetchone()[0]
+    else:
+        cursor.execute('INSERT INTO kanban_cards (title, description, status) VALUES (?, ?, ?)', (title, description, status))
+        new_id = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    return new_id
+
+
+def update_kanban_card(card_id, title=None, description=None, status=None, order_index=None):
+    conn = get_connection()
+    cursor = conn.cursor()
+    use_postgres_style = USE_SUPABASE and not isinstance(conn, sqlite3.Connection)
+    sets = []
+    params = []
+    if title is not None:
+        sets.append('title = %s' if use_postgres_style else 'title = ?')
+        params.append(title)
+    if description is not None:
+        sets.append('description = %s' if use_postgres_style else 'description = ?')
+        params.append(description)
+    if status is not None:
+        sets.append('status = %s' if use_postgres_style else 'status = ?')
+        params.append(status)
+    if order_index is not None:
+        sets.append('order_index = %s' if use_postgres_style else 'order_index = ?')
+        params.append(order_index)
+    if not sets:
+        conn.close()
+        return False
+    query = 'UPDATE kanban_cards SET ' + ', '.join(sets) + (' WHERE id = %s' if use_postgres_style else ' WHERE id = ?')
+    params.append(card_id)
+    cursor.execute(query, tuple(params))
+    conn.commit()
+    conn.close()
+    return True
+
+
+def delete_kanban_card(card_id):
+    conn = get_connection()
+    cursor = conn.cursor()
+    use_postgres_style = USE_SUPABASE and not isinstance(conn, sqlite3.Connection)
+    if use_postgres_style:
+        cursor.execute('DELETE FROM kanban_cards WHERE id = %s', (card_id,))
+    else:
+        cursor.execute('DELETE FROM kanban_cards WHERE id = ?', (card_id,))
+    conn.commit()
+    conn.close()
+    return True
