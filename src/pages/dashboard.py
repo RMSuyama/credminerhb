@@ -1,7 +1,7 @@
 
 import streamlit as st
 import pandas as pd
-from streamlit_sortables import sort_items
+
 from src.database import (
     get_dashboard_kpis, 
     get_kanban_cards, 
@@ -76,70 +76,64 @@ def render_dashboard():
                     delete_kanban_column(cid)
                     st.rerun()
 
-    # --- DRAG AND DROP BOARD ---
-    # Prepare data for sort_items
-    # Structure: {'Column Name': [{'text': 'Title', 'id': 1}, ...]}
-    kanban_data = {col: [] for col in column_names}
+    # --- DRAG AND DROP BOARD (NATIVE REPLACEMENT) ---
+    # Using columns and custom HTML for total control over styling.
+    # Trade-off: No drag and drop, but perfect visual "Blue Box" fix.
     
-    # helper to get all cards
-    # We need a way to get ALL cards efficiently or iterate columns. 
-    # Current DB `get_kanban_cards` filters by status.
-    # To avoid N queries, we should ideally fetch all. 
-    # But for now, we iterate.
+    # 1. Fetch Data
+    kanban_data = {name: [] for name in column_names}
     
-    original_cards = {} # Map id -> card data for lookup
+    for col_name in column_names:
+        kanban_data[col_name] = get_kanban_cards(col_name)
+
+    # 2. Render Columns
+    st_cols = st.columns(len(column_names))
     
-    for col in column_names:
-        cards = get_kanban_cards(col) # Status = Column Name
-        for c in cards:
-            # item formatted for sortables
-            # We use a custom string format or dict if supported. 
-            # sort_items supports list of strings. complex objects are trickier.
-            # WORKAROUND: Use string "ID: Title" and parse it back, or just Title if unique (unsafe).
-            # Better: "Title [id:X]"
-            label = f"{c['title']}" 
-            # We can't easily hide metadata in sort_items string list without parsing.
-            # Let's try to map indices. 
-            # unique_key strategy: f"{c['id']}_{c['title']}"
+    for i, col_name in enumerate(column_names):
+        with st_cols[i]:
+            # Column Header
+            st.markdown(f"##### {col_name}")
+            # Thick colorful line for header
+            st.markdown(f"<div style='background-color: #262730; height: 2px; margin-bottom: 10px;'></div>", unsafe_allow_html=True)
             
-            # Actually, `sort_items` returns the new order of items.
-            kanban_data[col].append(f"{c['title']} ::{c['id']}") 
-
-    # Prepare data for sort_items
-    # Structure for multi_containers=True: [{'header': 'Column Name', 'items': ['Item 1', 'Item 2']}]
-    kanban_items = []
-    
-    for col in column_names:
-        cards = get_kanban_cards(col) # Status = Column Name
-        items_list = []
-        for c in cards:
-            # item formatted: "#{id} {title}" for cleaner look
-            # We use a separator that is unlikely to be in title or regex
-            items_list.append(f"#{c['id']} {c['title']}")
-        
-        kanban_items.append({'header': col, 'items': items_list})
-
-    # Render Board
-    # Returns the updated list of dicts
-    sorted_items = sort_items(kanban_items, multi_containers=True)
-    
-    # Process Changes
-    for col_data in sorted_items:
-        # col_data is {'header': 'ColName', 'items': ['Item...', ...]}
-        target_status = col_data['header']
-        current_items = col_data['items']
-        
-        for item_str in current_items:
-            # Parse ID from "#{id} {title}"
-            # We look for the first space
-            if item_str.startswith("#"):
-                try:
-                    # Split only on first space
-                    parts = item_str.split(" ", 1)
-                    card_id_str = parts[0].replace("#", "")
-                    card_id = int(card_id_str)
+            # Cards
+            cards = kanban_data[col_name]
+            for card in cards:
+                # Render Card Container
+                with st.container():
+                    # Custom HTML for Card Look
+                    st.markdown(f"""
+                    <div style="
+                        background-color: #2C2C2C;
+                        border: 1px solid #444;
+                        border-left: 4px solid #E67E22;
+                        border-radius: 6px;
+                        padding: 10px;
+                        margin-bottom: 8px;
+                        color: #ECEFF1;
+                        box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+                    ">
+                        <strong style="font-size: 0.95rem; display: block; margin-bottom: 4px;">{card['title']}</strong>
+                        <p style="font-size: 0.8rem; color: #B0BEC5; margin: 0;">#{card['id']}</p>
+                    </div>
+                    """, unsafe_allow_html=True)
                     
-                    # Update status
-                    update_kanban_card_status(card_id, target_status)
-                except (ValueError, IndexError):
-                    pass
+                    # Move Buttons (Tiny)
+                    c_left, c_right = st.columns([1, 1])
+                    
+                    prev_col = column_names[i-1] if i > 0 else None
+                    next_col = column_names[i+1] if i < len(column_names) - 1 else None
+                    
+                    with c_left:
+                        if prev_col:
+                            if st.button("⬅️", key=f"prev_{card['id']}", use_container_width=True, help=f"Mover para {prev_col}"):
+                                update_kanban_card_status(card['id'], prev_col)
+                                st.rerun()
+                                
+                    with c_right:
+                        if next_col:
+                            if st.button("➡️", key=f"next_{card['id']}", use_container_width=True, help=f"Mover para {next_col}"):
+                                update_kanban_card_status(card['id'], next_col)
+                                st.rerun()
+                    
+                st.divider() # Visual separation
