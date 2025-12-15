@@ -105,55 +105,37 @@ def render_dashboard():
             # Actually, `sort_items` returns the new order of items.
             kanban_data[col].append(f"{c['title']} ::{c['id']}") 
 
+    # Prepare data for sort_items
+    # Structure for multi_containers=True: [{'header': 'Column Name', 'items': ['Item 1', 'Item 2']}]
+    kanban_items = []
+    
+    for col in column_names:
+        cards = get_kanban_cards(col) # Status = Column Name
+        items_list = []
+        for c in cards:
+            # item formatted: "Title ::ID"
+            items_list.append(f"{c['title']} ::{c['id']}")
+        
+        kanban_items.append({'header': col, 'items': items_list})
+
     # Render Board
-    sorted_data = sort_items(list(kanban_data.items()), multi_containers=True)
+    # Returns the updated list of dicts
+    sorted_items = sort_items(kanban_items, multi_containers=True)
     
-    # Detect Changes
-    # sorted_data is like [('Col1', ['item1', 'item2']), ('Col2', ['item3'])]
-    
-    # We compare `sorted_data` with `kanban_data` to see moves.
-    # But `streamlit-sortables` might not trigger rerun automatically on drop? 
-    # It usually returns the state. We check if state matches DB.
-    
-    # Re-process changes
-    changes_detected = False
-    
-    for col_data in sorted_data:
-        col_name = col_data._column_name # sort_items returns object with properties? 
-        # Wait, sort_items returns a list of SortableItemContainer or similar?
-        # No, standard usage: `items = sort_items(data)` returns the list of data in new order.
-        # But wait, input is list of dicts/tuples?
-        pass # checking structure below
-        
-    # Correct usage of sort_items with multi_containers:
-    # It returns a list of the modified items corresponding to the input structure.
-    
-    # Let's flatten and check against DB state
-    for col_idx, col_res in enumerate(sorted_data):
-        # col_res is the list of items in that column (the new state)
-        # column name is column_names[col_idx] (assuming order preserved)
-        
-        target_col_name = column_names[col_idx]
-        current_items = col_res
+    # Process Changes
+    for col_data in sorted_items:
+        # col_data is {'header': 'ColName', 'items': ['Item...', ...]}
+        target_status = col_data['header']
+        current_items = col_data['items']
         
         for item_str in current_items:
-            # Parse ID
-            # item_str format: "Title ::ID"
             if "::" in item_str:
                 parts = item_str.split("::")
                 card_id_str = parts[-1]
-                card_id = int(card_id_str)
-                
-                # Check if this card's status in DB matches `target_col_name`
-                # We can optimize by caching initial state, but individual updates are safer.
-                # Just update everything? Expensive.
-                # Better: Update ONLY if changed.
-                
-                # Check DB status (we need a quick lookup or just blind update)
-                # Blind update is safest for "simpler" logic.
-                update_kanban_card_status(card_id, target_col_name)
-    
-    # To avoid infinite rerun loops or massive DB hits, we should only update if diff?
-    # Actually, `sort_items` is interactive. When user drops, script reruns, returns new list.
-    # We act on that new list.
-    # Blind update is fine for small datasets ( < 100 cards).
+                try:
+                    card_id = int(card_id_str)
+                    # Blind update status ensures consistency
+                    # The database function should handle if it is already that status efficiently enough
+                    update_kanban_card_status(card_id, target_status)
+                except ValueError:
+                    pass
