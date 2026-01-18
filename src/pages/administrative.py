@@ -3,7 +3,7 @@ import streamlit as st
 import pandas as pd
 from datetime import date
 from dateutil.relativedelta import relativedelta
-from src.database import get_connection, get_clients, get_debtors, get_debts, get_kanban_cards
+from src.database import get_connection, get_clients, get_debtors, get_debts, get_kanban_cards, create_debt
 from src.validators import ContactValidator, CONTACT_STATUS_LIST
 from src.services import get_address_from_viacep
 from src.pdf_generator import PDFGenerator
@@ -157,7 +157,8 @@ def render_debtors():
                 st.form_submit_button("Salvar Devedor", disabled=True)
             else:
                 client_options = clients_df['id'].tolist()
-                selected_client_id = st.selectbox('Cliente', options=client_options, format_func=lambda x: clients_df[clients_df['id']==x].iloc[0]['name'])
+                client_map = dict(zip(clients_df['id'], clients_df['name']))
+                selected_client_id = st.selectbox('Cliente', options=client_options, format_func=lambda x: client_map.get(x, f"ID: {x}"))
                 name = st.text_input("Nome *")
                 
                 col1, col2 = st.columns(2)
@@ -273,8 +274,56 @@ def render_debts():
             installments = col2.number_input("Parcelas", min_value=1, value=1)
             
             if st.form_submit_button("Adicionar"):
-                conn = get_connection()
-                # Insert logic
-                conn.close()
-                st.success("Dívida Adicionada")
-                st.rerun()
+                print("DEBUG: Add debt button clicked")
+                # Retrieve client_id from selected debtor
+                debtor_info = debtors[debtors['id'] == selected_debtor_id].iloc[0]
+                client_id = int(debtor_info['client_id'])
+                
+                print(f"DEBUG: Processing for Client {client_id}, Debtor {selected_debtor_id}")
+                
+                success_count = 0
+                error_msgs = []
+                
+                import datetime
+                base_date = due_date
+                
+                import time
+                
+                # Check Installments Type
+                try:
+                    installments = int(installments)
+                except:
+                    installments = 1
+                
+                for i in range(installments):
+                    # Calculate due date for this installment
+                    current_due_date = base_date + relativedelta(months=i)
+                    
+                    # Description handling: append (x/N) if N > 1
+                    current_desc = description
+                    if installments > 1:
+                        current_desc = f"{description} ({i+1}/{installments})"
+                    
+                    success, msg = create_debt(
+                        debtor_id=selected_debtor_id,
+                        client_id=client_id,
+                        contract_type=contract_type,
+                        description=current_desc,
+                        original_value=val,
+                        due_date=current_due_date,
+                        installments=installments 
+                    )
+                    
+                    if success:
+                        success_count += 1
+                        print(f"DEBUG: Created debt {i+1}/{installments}")
+                    else:
+                        error_msgs.append(msg)
+                        print(f"DEBUG: Failed debt {i+1}: {msg}")
+                
+                if success_count == installments:
+                    st.toast(f"✅ {success_count} dívida(s) adicionada(s)!", icon="🎉")
+                    time.sleep(1.5) # Wait for toast
+                    st.rerun()
+                else:
+                    st.error(f"Erro ao adicionar dívidas. Sucesso: {success_count}/{installments}. Erros: {'; '.join(set(error_msgs))}")

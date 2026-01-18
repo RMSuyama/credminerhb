@@ -268,7 +268,7 @@ class PDFGenerator:
         elements.append(Spacer(1, 0.5*inch))
         
         # Footer
-        footer_text = f"CredMiner HB | NASA, Washington D.C., USA | hb.solutions@gmail.com | halfblood. 2018"
+        footer_text = f"Rua Rio Grande do Sul, cento de Juquiá/SP - CEP: 11800-000"
         elements.append(Paragraph(footer_text, ParagraphStyle(
             'Footer',
             parent=self.styles['Normal'],

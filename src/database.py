@@ -277,6 +277,9 @@ def init_db():
                 description TEXT,
                 status TEXT DEFAULT 'todo',
                 order_index INTEGER DEFAULT 0,
+                is_archived BOOLEAN DEFAULT FALSE,
+                due_date DATE,
+                priority TEXT DEFAULT 'Medium',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
@@ -536,10 +539,29 @@ def init_db():
                 description TEXT,
                 status TEXT DEFAULT 'todo',
                 order_index INTEGER DEFAULT 0,
+                is_archived BOOLEAN DEFAULT 0,
+                due_date TEXT,
+                priority TEXT DEFAULT 'Medium',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         ''')
+
+        # Check for migration: is_archived, due_date, priority in kanban_cards
+        try:
+            cursor.execute("PRAGMA table_info(kanban_cards)")
+            cols = [info[1] for info in cursor.fetchall()]
+            if 'is_archived' not in cols:
+                cursor.execute("ALTER TABLE kanban_cards ADD COLUMN is_archived BOOLEAN DEFAULT 0")
+                print("Migrated: Added 'is_archived' column to kanban_cards.")
+            if 'due_date' not in cols:
+                cursor.execute("ALTER TABLE kanban_cards ADD COLUMN due_date TEXT")
+                print("Migrated: Added 'due_date' column to kanban_cards.")
+            if 'priority' not in cols:
+                cursor.execute("ALTER TABLE kanban_cards ADD COLUMN priority TEXT DEFAULT 'Medium'")
+                print("Migrated: Added 'priority' column to kanban_cards.")
+        except Exception as e:
+            print(f"Migration check failed: {e}")
 
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS kanban_columns (
@@ -899,40 +921,41 @@ def get_kanban_cards(status=None):
     conn = get_connection()
     cursor = conn.cursor()
     use_postgres_style = USE_SUPABASE and not isinstance(conn, sqlite3.Connection)
-    if status:
-        if use_postgres_style:
-            cursor.execute('SELECT id, title, description, status, order_index FROM kanban_cards WHERE status = %s ORDER BY order_index ASC', (status,))
+    try:
+        if status:
+            if use_postgres_style:
+                cursor.execute('SELECT id, title, description, status, order_index, due_date, priority FROM kanban_cards WHERE status = %s AND (is_archived = FALSE OR is_archived IS NULL) ORDER BY order_index ASC', (status,))
+            else:
+                cursor.execute('SELECT id, title, description, status, order_index, due_date, priority FROM kanban_cards WHERE status = ? AND (is_archived = 0 OR is_archived IS NULL) ORDER BY order_index ASC', (status,))
         else:
-            cursor.execute('SELECT id, title, description, status, order_index FROM kanban_cards WHERE status = ? ORDER BY order_index ASC', (status,))
-    else:
-        if use_postgres_style:
-            cursor.execute('SELECT id, title, description, status, order_index FROM kanban_cards ORDER BY status, order_index ASC')
-        else:
-            cursor.execute('SELECT id, title, description, status, order_index FROM kanban_cards ORDER BY status, order_index ASC')
-    rows = cursor.fetchall()
-    conn.close()
-    cards = []
-    for r in rows:
-        cards.append({'id': r[0], 'title': r[1], 'description': r[2], 'status': r[3], 'order_index': r[4]})
-    return cards
+            if use_postgres_style:
+                cursor.execute('SELECT id, title, description, status, order_index, due_date, priority FROM kanban_cards WHERE (is_archived = FALSE OR is_archived IS NULL) ORDER BY status, order_index ASC')
+            else:
+                cursor.execute('SELECT id, title, description, status, order_index, due_date, priority FROM kanban_cards WHERE (is_archived = 0 OR is_archived IS NULL) ORDER BY status, order_index ASC')
+        rows = cursor.fetchall()
+        cards = []
+        for r in rows:
+            cards.append({'id': r[0], 'title': r[1], 'description': r[2], 'status': r[3], 'order_index': r[4], 'due_date': r[5], 'priority': r[6]})
+        return cards
+    finally:
+        conn.close()
 
-
-def create_kanban_card(title, description=None, status='todo'):
+def create_kanban_card(title, description=None, status='todo', due_date=None, priority='Medium'):
     conn = get_connection()
     cursor = conn.cursor()
     use_postgres_style = USE_SUPABASE and not isinstance(conn, sqlite3.Connection)
     if use_postgres_style:
-        cursor.execute('INSERT INTO kanban_cards (title, description, status) VALUES (%s, %s, %s) RETURNING id', (title, description, status))
+        cursor.execute('INSERT INTO kanban_cards (title, description, status, due_date, priority) VALUES (%s, %s, %s, %s, %s) RETURNING id', (title, description, status, due_date, priority))
         new_id = cursor.fetchone()[0]
     else:
-        cursor.execute('INSERT INTO kanban_cards (title, description, status) VALUES (?, ?, ?)', (title, description, status))
+        cursor.execute('INSERT INTO kanban_cards (title, description, status, due_date, priority) VALUES (?, ?, ?, ?, ?)', (title, description, status, due_date, priority))
         new_id = cursor.lastrowid
     conn.commit()
     conn.close()
     return new_id
 
 
-def update_kanban_card(card_id, title=None, description=None, status=None, order_index=None):
+def update_kanban_card(card_id, title=None, description=None, status=None, order_index=None, due_date=None, priority=None):
     conn = get_connection()
     cursor = conn.cursor()
     use_postgres_style = USE_SUPABASE and not isinstance(conn, sqlite3.Connection)
@@ -941,15 +964,27 @@ def update_kanban_card(card_id, title=None, description=None, status=None, order
     if title is not None:
         sets.append('title = %s' if use_postgres_style else 'title = ?')
         params.append(title)
+        
     if description is not None:
         sets.append('description = %s' if use_postgres_style else 'description = ?')
         params.append(description)
+        
     if status is not None:
         sets.append('status = %s' if use_postgres_style else 'status = ?')
         params.append(status)
+        
     if order_index is not None:
         sets.append('order_index = %s' if use_postgres_style else 'order_index = ?')
         params.append(order_index)
+
+    if due_date is not None:
+        sets.append('due_date = %s' if use_postgres_style else 'due_date = ?')
+        params.append(due_date)
+
+    if priority is not None:
+        sets.append('priority = %s' if use_postgres_style else 'priority = ?')
+        params.append(priority)
+        
     if not sets:
         conn.close()
         return False
@@ -1052,6 +1087,40 @@ def get_debts(debtor_id=None):
     finally:
          conn.close()
 
+def create_debt(debtor_id, client_id, contract_type, description, original_value, due_date, installments=1, fine_type=None):
+    """Creates a new debt. Returns (success, message)."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        import datetime
+        use_postgres_style = USE_SUPABASE and not isinstance(conn, sqlite3.Connection)
+        
+        # Ensure date is string (YYYY-MM-DD) for consistency
+        if isinstance(due_date, (datetime.date, datetime.datetime)):
+            due_date_str = due_date.strftime('%Y-%m-%d')
+        else:
+            due_date_str = str(due_date)
+
+        # Simple Logic: Create 1 entry (Loop handled in UI if needed)
+        if use_postgres_style:
+             cursor.execute('''
+                INSERT INTO debts (debtor_id, client_id, contract_type, description, original_value, due_date)
+                VALUES (%s, %s, %s, %s, %s, %s)
+             ''', (debtor_id, client_id, contract_type, description, float(original_value), due_date_str))
+        else:
+             cursor.execute('''
+                INSERT INTO debts (debtor_id, client_id, contract_type, description, original_value, due_date)
+                VALUES (?, ?, ?, ?, ?, ?)
+             ''', (debtor_id, client_id, contract_type, description, float(original_value), due_date_str))
+        
+        conn.commit()
+        return True, "Dívida criada com sucesso"
+    except Exception as e:
+        print(f"Error creating debt: {e}")
+        return False, str(e)
+    finally:
+        conn.close()
+
 def create_kanban_column(name):
     conn = get_connection()
     cursor = conn.cursor()
@@ -1109,5 +1178,170 @@ def update_kanban_card_status(card_id, new_status):
     except Exception as e:
         print(f"Error updating card status: {e}")
         return False
+    finally:
+        conn.close()
+
+def archive_kanban_card(card_id):
+    """Marks a card as archived."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        import sqlite3
+        if USE_SUPABASE and not isinstance(conn, sqlite3.Connection):
+             cursor.execute("UPDATE kanban_cards SET is_archived = TRUE WHERE id = %s", (card_id,))
+        else:
+             cursor.execute("UPDATE kanban_cards SET is_archived = 1 WHERE id = ?", (card_id,))
+        conn.commit()
+        return True
+    except Exception as e:
+        print(f"Error archiving card: {e}")
+        return False
+    finally:
+        conn.close()
+
+def check_overdue_tasks():
+    """Checks for overdue tasks and moves them to 'Atrasados' column if it exists, creating it if not."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    use_postgres_style = USE_SUPABASE and not isinstance(conn, sqlite3.Connection)
+    
+    try:
+        from datetime import date
+        today = date.today().isoformat()
+        
+        # 1. Check/Create 'Atrasados' column
+        # In this implementation, column names are unique logic?
+        # Let's check if 'Atrasados' exists
+        cursor.execute("SELECT name FROM kanban_columns WHERE name = 'Atrasados'")
+        if not cursor.fetchone():
+             # Create it
+             # Find max order
+             cursor.execute("SELECT MAX(order_index) FROM kanban_columns")
+             res = cursor.fetchone()
+             max_order = res[0] if res and res[0] is not None else -1
+             if use_postgres_style:
+                  cursor.execute("INSERT INTO kanban_columns (name, order_index) VALUES ('Atrasados', %s)", (max_order + 1,))
+             else:
+                  cursor.execute("INSERT INTO kanban_columns (name, order_index) VALUES ('Atrasados', ?)", (max_order + 1,))
+        
+        # 2. Update overdue cards
+        # Logic: due_date < today AND status != 'Done' AND status != 'Atrasados'
+        # Assuming 'Done' is the final state. Or we just check NOT 'Atrasados'.
+        
+        if use_postgres_style:
+             cursor.execute("""
+                UPDATE kanban_cards 
+                SET status = 'Atrasados' 
+                WHERE due_date IS NOT NULL 
+                  AND due_date < %s 
+                  AND status != 'Atrasados'
+                  AND status NOT LIKE 'Done%'
+                  AND status NOT LIKE 'Concluído%'
+             """, (today,))
+        else:
+             cursor.execute("""
+                UPDATE kanban_cards 
+                SET status = 'Atrasados' 
+                WHERE due_date IS NOT NULL 
+                  AND due_date < ? 
+                  AND status != 'Atrasados'
+                  AND status NOT LIKE 'Done%'
+                  AND status NOT LIKE 'Concluído%'
+             """, (today,))
+        
+        conn.commit()
+    except Exception as e:
+        print(f"Error checking overdue tasks: {e}")
+    finally:
+        conn.close()
+
+def restore_kanban_card(card_id):
+    """Restores an archived card."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        import sqlite3
+        if USE_SUPABASE and not isinstance(conn, sqlite3.Connection):
+             cursor.execute("UPDATE kanban_cards SET is_archived = FALSE WHERE id = %s", (card_id,))
+        else:
+             cursor.execute("UPDATE kanban_cards SET is_archived = 0 WHERE id = ?", (card_id,))
+        conn.commit()
+        return True
+    except Exception as e:
+        print(f"Error restoring card: {e}")
+        return False
+    finally:
+        conn.close()
+
+def get_archived_cards():
+    """Fetches all archived cards."""
+    conn = get_connection()
+    try:
+        return pd.read_sql_query("SELECT * FROM kanban_cards WHERE is_archived = 1 OR is_archived = TRUE ORDER BY updated_at DESC", conn)
+    except Exception as e:
+        print(f"Error fetching archived cards: {e}")
+        return pd.DataFrame()
+    finally:
+        conn.close()
+
+def get_kanban_stats():
+    """Returns stats for the dashboard sidebar."""
+    conn = get_connection()
+    try:
+        # Total tasks
+        total = pd.read_sql_query("SELECT count(*) as cnt FROM kanban_cards WHERE is_archived = 0 OR is_archived IS NULL", conn).iloc[0, 0]
+        
+        # Completed (Assuming 'Done' or 'Concluído' status)
+        completed = pd.read_sql_query("SELECT count(*) as cnt FROM kanban_cards WHERE (status LIKE 'Done%' OR status LIKE 'Concluído%') AND (is_archived = 0 OR is_archived IS NULL)", conn).iloc[0, 0]
+        
+        # Overdue (Status = 'Atrasados')
+        overdue = pd.read_sql_query("SELECT count(*) as cnt FROM kanban_cards WHERE status = 'Atrasados' AND (is_archived = 0 OR is_archived IS NULL)", conn).iloc[0, 0]
+        
+        # To Do (Total - Completed - Overdue)
+        # Or explicitly: not done and not overdue
+        todo = total - completed - overdue
+        
+        return {
+            "total": total,
+            "completed": completed,
+            "overdue": overdue,
+            "todo": todo
+        }
+    except Exception as e:
+        print(f"Error fetching stats: {e}")
+        return {"total": 0, "completed": 0, "overdue": 0, "todo": 0}
+    finally:
+        conn.close()
+
+def get_process_stats(days=30):
+    """Returns process movement stats for the last N days."""
+    conn = get_connection()
+    try:
+        # Check active processes
+        # 'moved' if updated_at > now - 30 days OR has petition created_at > now - 30 days
+        # For simplicity, we trust 'updated_at' on the process table (which should be updated when petitions change)
+        # If the app doesn't key updated_at correctly, we might need a complex join.
+        # Let's hope my previous refactors update 'updated_at'.
+        # If not, let's rely on simple `updated_at` check for now.
+        
+        import datetime
+        limit_date = datetime.date.today() - datetime.timedelta(days=days)
+        limit_str = limit_date.isoformat()
+        
+        # SQLite vs Postgres syntax for date comparison
+        # In SQLite, dates are likely text 'YYYY-MM-DD...'
+        
+        moved_query = f"SELECT count(*) FROM judicial_processes WHERE updated_at >= '{limit_str}'"
+        moved = pd.read_sql_query(moved_query, conn).iloc[0, 0]
+        
+        total_query = "SELECT count(*) FROM judicial_processes"
+        total = pd.read_sql_query(total_query, conn).iloc[0, 0]
+        
+        not_moved = total - moved
+        return {"moved": moved, "not_moved": not_moved, "days": days}
+        
+    except Exception as e:
+        print(f"Error fetching process stats: {e}")
+        return {"moved": 0, "not_moved": 0, "days": days}
     finally:
         conn.close()

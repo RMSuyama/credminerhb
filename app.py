@@ -17,6 +17,7 @@ from src.database import init_db
 from src.auth import validate_session_token
 from src.pages.auth import render_login
 from src.pages.dashboard import render_dashboard
+from src.pages.tasks import render_tasks
 from src.pages.administrative import render_clients, render_debtors, render_debts
 from src.pages.judicial import render_judicial, render_petitions
 from src.pages.calculations import render_negotiation, render_payments, render_agreements
@@ -58,10 +59,11 @@ else:
         st.divider()
         
         # Navigation
-        selected_module = "Dashboard" # Default
+        # Default to Tarefas as per user preference for control? Or Dashboard? Keeps Dashboard.
         
         # Principal
         st.markdown("PRINCIPAL")
+        if st.button("Tarefas - Compromissos", use_container_width=True): st.session_state['page'] = "Tarefas"
         if st.button("Dashboard", use_container_width=True): st.session_state['page'] = "Dashboard"
         
         st.markdown("ADMINISTRATIVO")
@@ -93,6 +95,9 @@ else:
     if page == "Dashboard":
         render_dashboard()
         
+    elif page == "Tarefas":
+        render_tasks()
+
     elif page == "Clientes":
         render_clients()
         
